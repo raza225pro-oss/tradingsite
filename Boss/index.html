@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<!-- 
+  🔐 FIREBASE SECURITY RULES (copy to Firebase Console > Realtime Database > Rules):
+  
+  {
+    "rules": {
+      ".read": true,
+      "admin": {
+        ".write": "auth != null",
+        "passHash": { ".write": false }
+      },
+      "keys": { ".write": "auth != null" },
+      "tools": { ".write": "auth != null" },
+      "links": { ".write": "auth != null" },
+      "courses": { ".write": "auth != null" },
+      "logs": { ".write": "auth != null" }
+    }
+  }
+  
+  NOTE: Admin login is from boss panel only. 
+  "auth != null" means Firebase Auth required for writes.
+  To restrict further: use "auth.uid === 'your-admin-uid'"
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Trading Pro Hub - Admin Command Center</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"></noscript>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<style>
+:root {
+    --bg: #050b07;
+    --primary: #00e676;
+    --secondary: #00b85e;
+    --accent: #ff3b4e;
+    --success: #00e676;
+    --premium: #ffd740;
+    --card: rgba(13,23,18,0.85);
+    --card-border: rgba(0,230,118,0.12);
+    --text: #FFFFFF;
+    --text-muted: #5f7a6c;
+    --blur: blur(25px);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; overscroll-behavior-y: none; height: 100vh; width: 100vw; }
+
+.hidden { display: none !important; }
+.text-gradient { background: linear-gradient(135deg, #00e676, #00b85e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.text-premium { background: linear-gradient(135deg, #FF9F0A, #FFD60A); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.bg-blobs { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: #000; overflow: hidden; }
+.blob { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.45; animation: float 20s ease-in-out infinite alternate; }
+.blob-1 { width: 650px; height: 650px; background: #0d3a24; top: 15%; left: -5%; }
+.blob-2 { width: 550px; height: 550px; background: #3a0f15; bottom: -10%; right: -10%; animation-delay: -5s; }
+.blob-3 { width: 480px; height: 480px; background: #0d2b1c; top: 45%; left: 35%; animation-delay: -10s; opacity: 0.5; }
+@keyframes float { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(25px,-25px) scale(1.04)} }
+
+#app { height: 100vh; width: 100vw; display: flex; flex-direction: column; position: relative; }
+.view { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 110px; animation: fadeIn 0.3s ease; }
+.view::-webkit-scrollbar { display: none; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+input, select, textarea { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 13px 15px; border-radius: 10px; font-size: 15px; margin-bottom: 11px; font-family: var(--font); outline: none; transition: 0.2s; }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); background: rgba(255,255,255,0.07); }
+select option { background: #1a1a1e; }
+
+button { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; color: #fff; display: flex; justify-content: center; align-items: center; gap: 8px; }
+button:active { transform: scale(0.97); }
+.btn-primary { background: var(--primary); }
+.btn-danger { background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.35); color: var(--accent); }
+.btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text); }
+.btn-sm { padding: 7px 10px; font-size: 12px; border-radius: 7px; width: auto; }
+
+.header { margin-bottom: 22px; padding-top: 25px; }
+.header h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.header p { color: var(--text-muted); font-size: 13px; margin-top: 3px; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+.stat-card { background: var(--card); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.stat-card.full { grid-column: 1 / -1; }
+.stat-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(255,255,255,0.07); }
+.stat-val { font-size: 24px; font-weight: 700; line-height: 1; }
+.stat-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.3px; }
+
+.list-group { background: var(--card); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; margin-bottom: 18px; }
+.list-item { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--card-border); }
+.list-item:last-child { border-bottom: none; }
+.item-info { display: flex; flex-direction: column; gap: 3px; overflow: hidden; flex: 1; }
+.item-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 7px; }
+.item-sub { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+.item-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 8px; }
+
+.badge { padding: 2px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge.active { background: rgba(50,215,75,0.15); color: var(--success); }
+.badge.inactive { background: rgba(255,69,58,0.15); color: var(--accent); }
+.badge-admin { background: rgba(10,132,255,0.15); color: var(--primary); }
+
+.toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); transition: .3s; border-radius: 30px; border: 1px solid rgba(255,255,255,0.06); }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+input:checked + .slider { background-color: var(--success); border-color: var(--success); }
+input:checked + .slider:before { transform: translateX(21px); }
+
+.fab { position: fixed; bottom: 95px; right: 18px; width: 52px; height: 52px; border-radius: 26px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 6px 20px rgba(10,132,255,0.35); z-index: 90; cursor: pointer; border: none; transition: 0.3s; }
+.fab:active { transform: scale(0.9); }
+
+.sheet-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; opacity: 0; pointer-events: none; transition: 0.3s; }
+.sheet-overlay.active { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; bottom: 0; left: 0; width: 100%; max-height: 90vh; background: #141416; border-radius: 20px 20px 0 0; z-index: 2001; transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.175,0.885,0.32,1); display: flex; flex-direction: column; border-top: 1px solid rgba(255,255,255,0.06); }
+.sheet.active { transform: translateY(0); }
+.sheet-drag { width: 36px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 4px; margin: 10px auto; }
+.sheet-header { padding: 8px 18px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); }
+.sheet-header h3 { font-size: 16px; font-weight: 700; }
+.sheet-close { background: rgba(255,255,255,0.08); border: none; width: 28px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; cursor: pointer; }
+.sheet-content { padding: 16px 18px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+.form-label { display: block; margin-bottom: 7px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+
+.checkbox-group { display: flex; flex-direction: column; gap: 7px; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 10px; border: 1px solid var(--card-border); margin-bottom: 14px; }
+.checkbox-label { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; padding: 4px 0; }
+.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); }
+
+.file-upload-wrapper { position: relative; border: 2px dashed rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; transition: 0.3s; background: rgba(255,255,255,0.02); }
+.file-upload-wrapper:hover { border-color: var(--primary); }
+.file-upload-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+#view-splash { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; z-index: 9999; }
+.loader { width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.06); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 18px 0; }
+@keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+
+.login-box { display: flex; flex-direction: column; justify-content: center; height: 100%; max-width: 380px; margin: 0 auto; text-align: center; }
+
+.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 65px; background: rgba(10,10,12,0.94); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-top: 1px solid var(--card-border); display: flex; justify-content: space-around; padding-bottom: 6px; z-index: 100; }
+.nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text-muted); font-size: 9px; font-weight: 500; cursor: pointer; transition: 0.3s; padding-top: 6px; }
+.nav-btn i { font-size: 17px; }
+.nav-btn.active { color: var(--primary); }
+
+#toast-container { position: fixed; top: 30px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 88%; max-width: 380px; }
+.toast { background: rgba(18,18,22,0.95); backdrop-filter: var(--blur); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: slideDown 0.3s forwards, fadeOut 0.3s 2.7s forwards; font-weight: 500; font-size: 13px; }
+@keyframes slideDown { from{transform:translateY(-12px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes fadeOut { to{opacity:0;transform:translateY(-12px)} }
+</style>
+</head>
+<body>
+
+<div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+</div>
+
+<div id="toast-container"></div>
+
+<div id="app">
+    <div id="view-splash" class="view">
+        <i class="fa-solid fa-server" style="font-size:3.5rem;color:var(--primary);margin-bottom:10px;"></i>
+        <h1 class="text-gradient" style="font-size:1.4rem;">TRADING PRO HUB</h1>
+        <div class="loader"></div>
+        <p id="splash-status" style="color:var(--text-muted);font-size:13px;">Connecting to Secure Firebase...</p>
+    </div>
+
+    <div id="view-login" class="view hidden" style="display:none;">
+        <div class="login-box">
+            <i class="fa-solid fa-user-shield" style="font-size:3rem;color:var(--premium);margin-bottom:14px;"></i>
+            <h1 class="text-gradient" style="font-size:1.8rem;">Admin Gateway</h1>
+            <p style="color:var(--text-muted);margin-bottom:28px;font-size:13px;">Authenticate to access Command Center.</p>
+            <form id="form-admin-login">
+                <input type="text" id="admin-user" placeholder="Username" autocapitalize="off" required>
+                <input type="password" id="admin-pass" placeholder="Password" required>
+                <button type="submit" class="btn-primary" style="margin-top:8px;"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="view-main" class="view hidden" style="display:none;padding-top:8px;">
+        <div id="tab-home" class="tab-content">
+            <div class="header"><h1 class="text-gradient">Overview</h1><p>Real-time system diagnostics.</p></div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-icon" style="color:var(--primary)"><i class="fa-solid fa-key"></i></div><div class="stat-val" id="stat-keys">0</div><div class="stat-label">Active Keys</div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:var(--success)"><i class="fa-solid fa-code"></i></div><div class="stat-val" id="stat-tools">0</div><div class="stat-label">HTML Tools</div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:var(--premium)"><i class="fa-solid fa-link"></i></div><div class="stat-val" id="stat-links">0</div><div class="stat-label">App Links</div></div>
+                <div class="stat-card"><div class="stat-icon" style="color:#AF52DE"><i class="fa-solid fa-graduation-cap"></i></div><div class="stat-val" id="stat-courses">0</div><div class="stat-label">Courses</div></div>
+                <div class="stat-card full"><div class="stat-icon" style="color:var(--accent)"><i class="fa-solid fa-list-check"></i></div><div class="stat-val" id="stat-logs">0</div><div class="stat-label">System Logs</div></div>
+            </div>
+            <h3 style="font-size:14px;margin:22px 0 10px;font-weight:700;">Recent Security Logs</h3>
+            <div class="list-group" id="list-logs" style="max-height:380px;overflow-y:auto;"></div>
+        </div>
+
+        <div id="tab-tools" class="tab-content hidden">
+            <div class="header"><h1 class="text-gradient">Trading Tools</h1><p>Manage Embedded HTML Tools</p></div>
+            <div class="list-group" id="list-tools"></div>
+        </div>
+
+        <div id="tab-links" class="tab-content hidden">
+            <div class="header"><h1 class="text-gradient">APK Links & Web Apps</h1><p>Manage External Applications & Downloads</p></div>
+            <div class="list-group" id="list-links"></div>
+        </div>
+
+        <div id="tab-courses" class="tab-content hidden">
+            <div class="header"><h1 class="text-gradient">Courses</h1><p>Manage Educational Content & Posters</p></div>
+            <div class="list-group" id="list-courses"></div>
+        </div>
+
+        <div id="tab-keys" class="tab-content hidden">
+            <div class="header"><h1 class="text-gradient">Access Control</h1><p>Manage Passkeys & Permissions</p></div>
+            <div style="background:rgba(10,132,255,0.08);padding:14px 16px;border-radius:12px;border:1px solid rgba(10,132,255,0.2);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="padding-right:12px;"><strong style="color:#fff;font-size:14px;">Key System Protection</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4;">Turn off to bypass login screen and show a simple "Continue" button for users.</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="toggle-key-system" onchange="Admin.toggleKeySystem(this.checked)"><span class="slider"></span></label>
+            </div>
+            <div class="list-group" id="list-keys"></div>
+        </div>
+
+        <div id="tab-settings" class="tab-content hidden">
+            <div class="header"><h1 class="text-gradient">Configuration</h1><p>Core System Settings & Security</p></div>
+            <div class="list-group" style="padding:18px;">
+                <form id="form-settings">
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--primary);font-weight:700;">Splash Screen Logo</h3>
+                    <label class="form-label">Custom Logo (Upload Image)</label>
+                    <div class="file-upload-wrapper" style="padding:12px;margin-bottom:8px;"><input type="file" id="admin-logo-file" class="file-upload-input" accept="image/*"><i class="fa-solid fa-image" style="color:var(--primary);"></i> Upload Logo (will be used on splash screen)</div>
+                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+                        <div style="width:56px;height:56px;border-radius:12px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;overflow:hidden;border:1px solid var(--card-border);flex-shrink:0;"><img id="admin-logo-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;"><i id="admin-logo-placeholder" class="fa-solid fa-image" style="color:var(--text-muted);font-size:1.2rem;"></i></div>
+                        <input type="hidden" id="admin-logo-base64">
+                    </div>
+                    <hr style="border:0;border-top:1px solid var(--card-border);margin:22px 0;">
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--primary);font-weight:700;">Admin Credentials</h3>
+                    <label class="form-label">Admin Username</label><input type="text" id="set-admin-user" required>
+                    <label class="form-label">New Password (leave blank to keep)</label><input type="password" id="set-admin-pass">
+                    <label class="form-label">WhatsApp Contact Link (For Access Denied)</label><input type="url" id="set-wa-link" placeholder="https://wa.me/...">
+                    <hr style="border:0;border-top:1px solid var(--card-border);margin:22px 0;">
+                    <h3 class="text-premium" style="font-size:14px;margin-bottom:12px;font-weight:700;">Force Join Security</h3>
+                    <div style="background:rgba(255,159,10,0.06);padding:14px;border-radius:10px;border:1px solid rgba(255,159,10,0.18);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
+                        <strong style="color:#fff;font-size:13px;">Enable Force Join Requirement</strong>
+                        <label class="toggle-switch"><input type="checkbox" id="set-fj-active"><span class="slider"></span></label>
+                    </div>
+                    <label class="form-label"><i class="fa-brands fa-telegram" style="color:#0088cc;"></i> Telegram Channel Link</label><input type="url" id="set-fj-tg" placeholder="https://t.me/...">
+                    <label class="form-label"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> WhatsApp Channel Link</label><input type="url" id="set-fj-wa" placeholder="https://whatsapp.com/channel/...">
+                    <label class="form-label">Short Note (Why join?)</label><textarea id="set-fj-note" rows="3" placeholder="Join our official channel to unlock the tools and get latest updates!"></textarea>
+                    <button type="submit" class="btn-primary" style="margin-top:18px;"><i class="fa-solid fa-save"></i> Save Configuration</button>
+                </form>
+            </div>
+            <button class="btn-danger" style="margin-top:22px;" onclick="Admin.logout()"><i class="fa-solid fa-power-off"></i> Logout</button>
+        </div>
+
+    <!-- PREMIUM TAB -->
+    <div id="tab-premium" class="tab-content hidden">
+        <div class="header"><h1 class="text-gradient">VIP Signals</h1><p>Manage Premium Content &amp; Payments</p></div>
+        <h3 style="font-size:14px;margin-bottom:10px;font-weight:700;color:var(--premium);"><i class="fa-solid fa-gear"></i> Payment Settings</h3>
+        <div class="list-group" style="padding:18px;">
+            <form id="form-premium-config">
+                <label class="form-label">Bank / Payment Method Name</label>
+                <input type="text" id="premium-bank-name" required placeholder="e.g. EasyPaisa, JazzCash">
+                <label class="form-label">Account Number</label>
+                <input type="text" id="premium-account" required placeholder="e.g. 03238693440">
+                <label class="form-label">Receiver Name</label>
+                <input type="text" id="premium-receiver" required placeholder="e.g. John Doe">
+                <label class="form-label">Payment Amount (PKR)</label>
+                <input type="number" id="premium-amount" required min="1" placeholder="500">
+                <label class="form-label"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> Admin WhatsApp Number</label>
+                <input type="tel" id="premium-admin-wa" required placeholder="e.g. 923238693440">
+                <button type="submit" class="btn-primary" style="margin-top:12px;"><i class="fa-solid fa-save"></i> Save Payment Settings</button>
+            </form>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;"><h3 style="font-size:14px;font-weight:700;color:var(--premium);margin:0;"><i class="fa-solid fa-cube"></i> Premium Content</h3><button class="btn-primary btn-sm" onclick="Admin.openPremiumContentSheet()" style="width:auto;padding:6px 12px;font-size:11px;border-radius:8px;"><i class="fa-solid fa-plus"></i> Add</button></div>
+        <div class="list-group" id="list-premium-content"></div>
+        <h3 style="font-size:14px;margin:22px 0 10px;font-weight:700;color:var(--premium);"><i class="fa-solid fa-envelope"></i> Payment Requests</h3>
+        <div class="list-group" id="list-premium-requests"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;"><h3 style="font-size:14px;font-weight:700;color:var(--premium);margin:0;"><i class="fa-solid fa-key"></i> Premium Access Keys</h3><button class="btn-primary btn-sm" onclick="Admin.openPremiumKeySheet()" style="width:auto;padding:6px 12px;font-size:11px;border-radius:8px;"><i class="fa-solid fa-plus"></i> Add</button></div>
+        <div class="list-group" id="list-premium-keys"></div>
+    </div>
+
+    </div>
+
+    <div class="bottom-nav hidden" id="bottom-nav">
+        <div class="nav-btn active" onclick="Admin.switchTab('home',this)"><i class="fa-solid fa-chart-pie"></i>Home</div>
+        <div class="nav-btn" onclick="Admin.switchTab('tools',this)"><i class="fa-solid fa-code"></i>Tools</div>
+        <div class="nav-btn" onclick="Admin.switchTab('links',this)"><i class="fa-brands fa-android"></i>Links</div>
+        <div class="nav-btn" onclick="Admin.switchTab('courses',this)"><i class="fa-solid fa-graduation-cap"></i>Courses</div>
+            <div class="nav-btn" onclick="Admin.switchTab('keys',this)"><i class="fa-solid fa-shield-halved"></i>Keys</div>
+            <div class="nav-btn" onclick="Admin.switchTab('premium',this)"><i class="fa-solid fa-crown"></i>Premium</div>
+            <div class="nav-btn" onclick="Admin.switchTab('settings',this)"><i class="fa-solid fa-gear"></i>Config</div>
+    </div>
+</div>
+
+<div class="sheet-overlay" id="overlay" onclick="Admin.hideSheets()"></div>
+
+<div class="sheet" id="sheet-tool">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-tool-title">Upload HTML Tool</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-add-tool">
+            <input type="hidden" id="tool-id">
+            <label class="form-label">Tool Name</label><input type="text" id="tool-name" required placeholder="e.g. Password Generator">
+            <label class="form-label">Icon Type</label>
+            <select id="tool-icon-type" onchange="Admin.toggleToolIconType()">
+                <option value="fa">FontAwesome Icon</option><option value="img">Custom Image Upload</option>
+            </select>
+            <div id="tool-group-icon-fa">
+                <label class="form-label">FontAwesome Class</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <input type="text" id="tool-icon-fa" style="margin:0;flex:1;" placeholder="fa-solid fa-gear" value="fa-solid fa-cube">
+                    <div style="width:44px;height:44px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:center;align-items:center;font-size:1.1rem;border:1px solid var(--card-border);flex-shrink:0;"><i id="tool-icon-preview" class="fa-solid fa-cube" style="color:var(--primary);"></i></div>
+                </div>
+            </div>
+            <div id="tool-group-icon-img" class="hidden">
+                <label class="form-label">Custom Image Icon</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <div class="file-upload-wrapper" style="flex:1;padding:12px;"><input type="file" id="tool-icon-file" class="file-upload-input" accept="image/*"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i> Select Image</div>
+                    <div style="width:48px;height:48px;border-radius:10px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;overflow:hidden;border:1px solid var(--card-border);flex-shrink:0;"><img id="tool-img-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;"><i id="tool-img-placeholder" class="fa-solid fa-image" style="color:var(--text-muted);"></i></div>
+                </div>
+                <input type="hidden" id="tool-icon-base64">
+            </div>
+            <label class="form-label" style="margin-top:16px;">HTML Source / Upload</label>
+            <div class="file-upload-wrapper" style="padding:12px;margin-bottom:8px;"><input type="file" id="tool-file" class="file-upload-input" accept=".html,.htm"><i class="fa-solid fa-file-code" style="color:var(--primary);"></i> Upload .html File</div>
+            <textarea id="tool-html" rows="4" placeholder="Or paste raw HTML code here..." style="font-family:monospace;font-size:12px;" required></textarea>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">Tool is Active</strong><label class="toggle-switch"><input type="checkbox" id="tool-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary">Save HTML Tool</button>
+        </form>
+    </div>
+</div>
+
+<div class="sheet" id="sheet-link">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-link-title">Add APK / Link</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-add-link">
+            <input type="hidden" id="link-id">
+            <label class="form-label">App / Link Name</label><input type="text" id="link-name" required placeholder="e.g. Free Fire Mod APK">
+            <label class="form-label">Icon Type</label>
+            <select id="link-icon-type" onchange="Admin.toggleLinkIconType()">
+                <option value="fa">FontAwesome Icon</option><option value="img">Custom Image Upload</option>
+            </select>
+            <div id="link-group-icon-fa">
+                <label class="form-label">FontAwesome Class</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <input type="text" id="link-icon-fa" style="margin:0;flex:1;" placeholder="fa-brands fa-android" value="fa-brands fa-android">
+                    <div style="width:44px;height:44px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:center;align-items:center;font-size:1.1rem;border:1px solid var(--card-border);flex-shrink:0;"><i id="link-icon-preview" class="fa-brands fa-android" style="color:var(--premium);"></i></div>
+                </div>
+            </div>
+            <label class="form-label" style="margin-top:16px;">URL / APK Download Link</label>
+            <div style="display:flex;gap:8px;">
+                <input type="url" id="link-url" required placeholder="https://example.com/download.apk" style="flex:1;">
+                <button type="button" class="btn-outline" style="width:auto;padding:0 14px;flex-shrink:0;border-radius:10px;" onclick="Admin.fetchLinkIcon()"><i class="fa-solid fa-magnifying-glass"></i> Fetch</button>
+                <button type="button" class="btn-outline" style="width:auto;padding:0 14px;flex-shrink:0;border-radius:10px;border-color:rgba(255,100,50,0.3);color:#ff6432;" onclick="document.getElementById('link-icon-type').value='img';Admin.toggleLinkIconType();document.getElementById('link-icon-file').click();"><i class="fa-solid fa-upload"></i> Upload</button>
+            </div>
+            <div id="link-group-icon-img" class="hidden" style="margin-top:10px;">
+                <label class="form-label">Custom Image Icon</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <div class="file-upload-wrapper" style="flex:1;padding:12px;"><input type="file" id="link-icon-file" class="file-upload-input" accept="image/*"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--primary);"></i> Select Image</div>
+                    <div style="width:48px;height:48px;border-radius:10px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;overflow:hidden;border:1px solid var(--card-border);flex-shrink:0;"><img id="link-img-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;"><i id="link-img-placeholder" class="fa-solid fa-image" style="color:var(--text-muted);"></i></div>
+                </div>
+                <input type="hidden" id="link-icon-base64">
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">App/Link is Active</strong><label class="toggle-switch"><input type="checkbox" id="link-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary" style="background:var(--premium);color:#000;">Save App / Link</button>
+        </form>
+    </div>
+</div>
+
+<div class="sheet" id="sheet-course">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-course-title">Add Course</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-add-course">
+            <input type="hidden" id="course-id">
+            <label class="form-label">Course Title</label><input type="text" id="course-name" required placeholder="e.g. Web Development Masterclass">
+            <label class="form-label">Short Description</label><textarea id="course-desc" rows="2" placeholder="Brief description of the course content..."></textarea>
+            <label class="form-label">Course Poster Image</label>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                <div class="file-upload-wrapper" style="flex:1;padding:12px;"><input type="file" id="course-poster-file" class="file-upload-input" accept="image/*"><i class="fa-solid fa-cloud-arrow-up" style="color:#AF52DE;"></i> Upload Poster</div>
+                <div style="width:65px;height:48px;border-radius:10px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;overflow:hidden;border:1px solid var(--card-border);flex-shrink:0;"><img id="course-img-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;"><i id="course-img-placeholder" class="fa-solid fa-image" style="color:var(--text-muted);"></i></div>
+            </div>
+            <input type="hidden" id="course-poster-base64">
+            <label class="form-label">Content Format</label>
+            <select id="course-format"><option value="video">Video Stream</option><option value="document">PDF / Document</option><option value="link">External Website Link</option></select>
+            <label class="form-label" style="margin-top:12px;">Content URL</label>
+            <div style="display:flex;gap:8px;">
+                <input type="url" id="course-url" required placeholder="https://youtube.com/... or https://drive.google.com/..." style="flex:1;">
+                <button type="button" class="btn-outline" style="width:auto;padding:0 14px;flex-shrink:0;border-radius:10px;" onclick="Admin.autoFetchCoursePoster(true)"><i class="fa-solid fa-magnifying-glass"></i> Fetch</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">Course is Active</strong><label class="toggle-switch"><input type="checkbox" id="course-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary" style="background:#AF52DE;color:#fff;">Save Course</button>
+        </form>
+    </div>
+</div>
+
+<div class="sheet" id="sheet-key">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-key-title">Generate Passkey</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-add-key">
+            <input type="hidden" id="key-id">
+            <label class="form-label">Key Alias (Name)</label><input type="text" id="key-name" required placeholder="e.g. VIP Member">
+            <label class="form-label">Passkey String (Must start with 'dark', end with 'ub')</label>
+            <div style="display:flex;gap:8px;margin-bottom:11px;">
+                <input type="text" id="key-string" style="margin:0;flex:1;" required pattern="^dark.*ub$">
+                <button type="button" class="btn-outline" style="width:auto;padding:0 14px;flex-shrink:0;" onclick="Admin.randomKeyString()"><i class="fa-solid fa-dice"></i></button>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <div style="flex:1;"><label class="form-label">Max Uses (0=infinite)</label><input type="number" id="key-limit" value="0" min="0"></div>
+                <div style="flex:1;"><label class="form-label">Expiry Date</label><input type="date" id="key-expiry"></div>
+            </div>
+            <label class="form-label">Assign Permissions (Tools & Links)</label>
+            <div class="checkbox-group" id="key-tools-list"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">Key is Active</strong><label class="toggle-switch"><input type="checkbox" id="key-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary">Save Access Key</button>
+        </form>
+    </div>
+</div>
+
+<!-- PREMIUM CONTENT SHEET -->
+<div class="sheet" id="sheet-premium-content">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-premium-content-title">Add Premium Content</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-premium-content">
+            <input type="hidden" id="premium-content-id">
+            <label class="form-label">Content Name</label>
+            <input type="text" id="premium-content-name" required placeholder="e.g. Premium Video">
+            <label class="form-label">Content Type</label>
+            <select id="premium-content-type" onchange="Admin.onPremiumContentTypeChange()">
+                <option value="course">Course</option>
+                <option value="apk">APK</option>
+                <option value="video">Video</option>
+                <option value="image">Image</option>
+                <option value="zip">ZIP</option>
+            </select>
+            <label class="form-label">Icon Type</label>
+            <select id="premium-content-icon-type" onchange="Admin.togglePremiumContentIconType()">
+                <option value="fa">FontAwesome Icon</option>
+                <option value="img">Custom Image Upload</option>
+            </select>
+            <div id="premium-content-group-icon-fa">
+                <label class="form-label">FontAwesome Class</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <input type="text" id="premium-content-icon-fa" style="margin:0;flex:1;" placeholder="fa-solid fa-cube" oninput="document.getElementById('premium-content-icon-preview').className=this.value">
+                    <div style="width:44px;height:44px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:center;align-items:center;font-size:1.1rem;border:1px solid var(--card-border);flex-shrink:0;"><i id="premium-content-icon-preview" class="fa-solid fa-cube" style="color:var(--premium);"></i></div>
+                </div>
+            </div>
+            <div id="premium-content-group-icon-img" class="hidden">
+                <label class="form-label">Custom Image Icon</label>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:11px;">
+                    <div class="file-upload-wrapper" style="flex:1;padding:12px;"><input type="file" id="premium-content-icon-file" class="file-upload-input" accept="image/*"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--premium);"></i> Select Image</div>
+                    <div style="width:48px;height:48px;border-radius:10px;background:rgba(255,255,255,0.05);display:flex;justify-content:center;align-items:center;overflow:hidden;border:1px solid var(--card-border);flex-shrink:0;"><img id="premium-content-img-preview" src="" style="width:100%;height:100%;object-fit:cover;display:none;"><i id="premium-content-img-placeholder" class="fa-solid fa-image" style="color:var(--text-muted);"></i></div>
+                </div>
+                <input type="hidden" id="premium-content-icon-base64">
+            </div>
+            <label class="form-label" style="margin-top:16px;">Content URL / Download Link</label>
+            <input type="url" id="premium-content-url" required placeholder="https://...">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">Content is Active</strong><label class="toggle-switch"><input type="checkbox" id="premium-content-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary" style="background:var(--premium);color:#000;">Save Premium Content</button>
+        </form>
+    </div>
+</div>
+
+<!-- PREMIUM KEY SHEET -->
+<div class="sheet" id="sheet-premium-key">
+    <div class="sheet-drag"></div>
+    <div class="sheet-header"><h3 id="sheet-premium-key-title">Generate Premium Key</h3><button class="sheet-close" onclick="Admin.hideSheets()"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="sheet-content">
+        <form id="form-premium-key">
+            <input type="hidden" id="premium-key-id">
+            <label class="form-label">Key Alias (Name)</label>
+            <input type="text" id="premium-key-name" required placeholder="e.g. VIP Premium">
+            <label class="form-label">Premium Key String</label>
+            <div style="display:flex;gap:8px;margin-bottom:11px;">
+                <input type="text" id="premium-key-string" style="margin:0;flex:1;" required>
+                <button type="button" class="btn-outline" style="width:auto;padding:0 14px;flex-shrink:0;" onclick="document.getElementById('premium-key-string').value='prem_'+Math.random().toString(36).substring(2,10)"><i class="fa-solid fa-dice"></i></button>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <div style="flex:1;"><label class="form-label">Max Uses (0=infinite)</label><input type="number" id="premium-key-limit" value="0" min="0"></div>
+                <div style="flex:1;"><label class="form-label">Expiry Date</label><input type="date" id="premium-key-expiry"></div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:12px 0;"><strong style="color:#fff;font-size:13px;">Key is Active</strong><label class="toggle-switch"><input type="checkbox" id="premium-key-active" checked><span class="slider"></span></label></div>
+            <button type="submit" class="btn-primary">Save Premium Key</button>
+        </form>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyC2ip7TQ3RK2xdEssTrfooAfvhEtR11zqE",
+    authDomain: "tradingsite-94e13.firebaseapp.com",
+    projectId: "tradingsite-94e13",
+    storageBucket: "tradingsite-94e13.firebasestorage.app",
+    messagingSenderId: "833467335138",
+    appId: "1:833467335138:web:d8ac19734d8408427eb9bb"
+};
+
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+const defaultSetup = {
+    admin: { user:'admin', passHash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', waLink:'', keySystemActive:true, forceJoin:{ active:true, telegram:'', whatsapp:'', note:'Join our official channel to unlock the tools and get latest updates!' } },
+    keys: [{ id:'k_master', key:'darkmasterub', name:'Master Access', limit:0, uses:0, expiry:'', active:true, tools:['all'] }],
+    tools: [],
+    links: [],
+    courses: [],
+    logs: [{ time: new Date().toISOString(), action:'System Init', details:'Database configured via Trading Pro Hub.' }]
+};
+
+const h = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+async function hashPass(pwd) {
+    const d = new TextEncoder().encode(pwd);
+    const h = await crypto.subtle.digest('SHA-256', d);
+    return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const Admin = {
+    state: { admin:{}, keys:[], tools:[], links:[], courses:[], logs:[], premiumConfig:{ bankName:'EasyPaisa', accountNumber:'03238693440', receiverName:'Receiver', amount:500 }, premiumContent:[], premiumKeys:[], premiumRequests:[] },
+    initialLoad: false,
+    sessionKey: 'dv_ios_admin_session',
+    currentTab: 'home',
+    fabIcon: 'fa-plus',
+
+    init() { this.setupListeners(); this.connectFirebase(); },
+
+    toast(msg, type='success') {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        const icon = type==='success' ? '<i class="fa-solid fa-check-circle" style="color:var(--success)"></i>' : '<i class="fa-solid fa-triangle-exclamation" style="color:var(--accent)"></i>';
+        t.className = 'toast';
+        t.innerHTML = icon+'<span>'+msg+'</span>';
+        c.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    },
+
+    saveLog(action, details) {
+        this.state.logs.unshift({ time: new Date().toISOString(), action, details });
+        if(this.state.logs.length > 100) this.state.logs.pop();
+        database.ref('logs').set(this.state.logs).catch(() => {});
+    },
+
+    connectFirebase() {
+        const nodes = ['admin','keys','tools','links','courses','logs','premiumConfig','premiumContent','premiumKeys','premiumRequests'];
+        const refs = nodes.map(n => database.ref(n).once('value').then(s => [n, s.val()]).catch(() => [n, null]));
+        Promise.all(refs).then(results => {
+            const data = {};
+            results.forEach(([key, val]) => { data[key] = val; });
+            if(!data.admin) {
+                document.getElementById('splash-status').textContent = "Configuring Database Defaults...";
+                database.ref('/').set(defaultSetup).then(() => {
+                    const retry = nodes.map(n => database.ref(n).once('value').then(s => [n, s.val()]).catch(() => [n, null]));
+                    Promise.all(retry).then(r => {
+                        const d = {};
+                        r.forEach(([k, v]) => { d[k] = v; });
+                        this.onDataReady(d);
+                    });
+                });
+                return;
+            }
+            this.onDataReady(data);
+        }, (error) => {
+            document.getElementById('splash-status').textContent = "Connection Error!";
+            this.toast('Firebase read error.','error');
+        });
+    },
+
+    async onDataReady(data) {
+        this.state.admin = data.admin;
+        // Migrate old plaintext password to hash
+        if (this.state.admin.pass && !this.state.admin.passHash) {
+            this.state.admin.passHash = await hashPass(this.state.admin.pass);
+            delete this.state.admin.pass;
+            database.ref('admin').update({ passHash: this.state.admin.passHash, pass: null });
+        }
+        if(this.state.admin.keySystemActive === undefined) this.state.admin.keySystemActive = true;
+        if(!this.state.admin.forceJoin) this.state.admin.forceJoin = { active:true, telegram:'', whatsapp:'', note:'' };
+        this.state.keys = data.keys || [];
+        this.state.tools = data.tools || [];
+        this.state.links = data.links || [];
+        this.state.courses = data.courses || [];
+        this.state.logs = data.logs || [];
+        this.state.premiumConfig = data.premiumConfig || { bankName:'EasyPaisa', accountNumber:'03238693440', receiverName:'Receiver', amount:500 };
+        this.state.premiumContent = data.premiumContent || [];
+        this.state.premiumKeys = data.premiumKeys || [];
+        this.state.premiumRequests = data.premiumRequests || [];
+        if(!this.initialLoad) { this.initialLoad = true; setTimeout(() => this.handleRouting(), 300); }
+        else if(sessionStorage.getItem(this.sessionKey)) this.renderAll();
+    },
+
+    handleRouting() {
+        document.getElementById('view-splash').style.display = 'none';
+        if(sessionStorage.getItem(this.sessionKey)) {
+            this.showMain();
+        } else {
+            document.getElementById('view-login').style.display = 'flex';
+            document.getElementById('view-login').classList.remove('hidden');
+            document.getElementById('view-main').style.display = 'none';
+            document.getElementById('bottom-nav').style.display = 'none';
+        }
+    },
+
+    showMain() {
+        document.getElementById('view-login').style.display = 'none';
+        document.getElementById('view-login').classList.add('hidden');
+        document.getElementById('view-main').style.display = 'block';
+        document.getElementById('view-main').classList.remove('hidden');
+        document.getElementById('bottom-nav').style.display = 'flex';
+        document.getElementById('bottom-nav').classList.remove('hidden');
+        this.switchTab('home');
+        this.renderAll();
+    },
+
+    toggleKeySystem(isActive) {
+        this.state.admin.keySystemActive = isActive;
+        database.ref('admin/keySystemActive').set(isActive).then(() => {
+            this.saveLog('Security Update', 'Key Login System: '+(isActive?'ENABLED':'DISABLED'));
+            this.toast('Key System '+(isActive?'Enabled':'Disabled'));
+        }).catch(() => this.toast('Failed to update key system','error'));
+    },
+
+    setupListeners() {
+        document.getElementById('form-admin-login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('admin-user').value;
+            const p = document.getElementById('admin-pass').value;
+            const pHash = await hashPass(p);
+            if(u===this.state.admin.user && pHash===(this.state.admin.passHash||'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918')) {
+                sessionStorage.setItem(this.sessionKey, 'true');
+                document.getElementById('form-admin-login').reset();
+                this.saveLog('Admin Login','Trading Pro Hub Panel authenticated');
+                this.showMain();
+                this.toast('Welcome to Command Center');
+            } else {
+                this.toast('Invalid Credentials','error');
+                this.saveLog('Failed Admin Login','User attempt: '+h(u));
+            }
+        });
+
+        document.getElementById('form-settings').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            this.state.admin.user = document.getElementById('set-admin-user').value;
+            const newPass = document.getElementById('set-admin-pass').value;
+            if(newPass) this.state.admin.passHash = await hashPass(newPass);
+            this.state.admin.waLink = document.getElementById('set-wa-link').value;
+            this.state.admin.logo = document.getElementById('admin-logo-base64').value || '';
+            this.state.admin.forceJoin = {
+                active: document.getElementById('set-fj-active').checked,
+                telegram: document.getElementById('set-fj-tg').value,
+                whatsapp: document.getElementById('set-fj-wa').value,
+                note: document.getElementById('set-fj-note').value
+            };
+            database.ref('admin').update({
+                user: this.state.admin.user,
+                passHash: this.state.admin.passHash,
+                waLink: this.state.admin.waLink,
+                logo: this.state.admin.logo,
+                forceJoin: this.state.admin.forceJoin
+            }).then(() => {
+                this.saveLog('Settings Updated','Admin config and security updated');
+                this.toast('Settings Saved Successfully');
+            }).catch(() => this.toast('Failed to save settings','error'));
+        });
+
+        document.getElementById('form-add-tool').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('tool-id').value || 't_'+Math.random().toString(36).substr(2,9);
+            const iconType = document.getElementById('tool-icon-type').value;
+            const toolData = {
+                id, name:document.getElementById('tool-name').value, iconType,
+                icon: iconType==='fa' ? document.getElementById('tool-icon-fa').value : '',
+                iconData: iconType==='img' ? document.getElementById('tool-icon-base64').value : '',
+                active:document.getElementById('tool-active').checked, html:document.getElementById('tool-html').value
+            };
+            if(iconType==='img' && !toolData.iconData) return this.toast('Upload an image icon','error');
+            const idx = this.state.tools.findIndex(x => x.id===id);
+            if(idx>-1) this.state.tools[idx]=toolData; else this.state.tools.push(toolData);
+            database.ref('tools').set(this.state.tools).then(() => {
+                this.saveLog('Tool Saved','HTML Tool: '+toolData.name);
+                this.hideSheets(); this.toast('HTML Tool Saved');
+            });
+        });
+
+        document.getElementById('form-add-link').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('link-url').value;
+            const iconType = document.getElementById('link-icon-type').value;
+            const hasCustomIcon = document.getElementById('link-icon-base64').value;
+            const hasCustomFA = document.getElementById('link-icon-fa').value !== 'fa-brands fa-android';
+            if(url && !hasCustomIcon && !hasCustomFA && iconType === 'fa') {
+                this.toast('Fetching icon before save...');
+                await new Promise((resolve) => {
+                    this.fetchFavicon(url, true);
+                    setTimeout(resolve, 4000);
+                });
+            }
+            const id = document.getElementById('link-id').value || 'l_'+Math.random().toString(36).substr(2,9);
+            const finalIconType = document.getElementById('link-icon-type').value;
+            const linkData = {
+                id, name:document.getElementById('link-name').value, iconType: finalIconType,
+                icon: finalIconType==='fa' ? document.getElementById('link-icon-fa').value : '',
+                iconData: finalIconType==='img' ? document.getElementById('link-icon-base64').value : '',
+                active:document.getElementById('link-active').checked, url: url
+            };
+            if(finalIconType==='img' && !linkData.iconData) return this.toast('Upload an image icon','error');
+            const idx = this.state.links.findIndex(x => x.id===id);
+            if(idx>-1) this.state.links[idx]=linkData; else this.state.links.push(linkData);
+            database.ref('links').set(this.state.links).then(() => {
+                this.saveLog('Link/App Saved','Link: '+linkData.name);
+                this.hideSheets(); this.toast('APK / Web Link Saved');
+            });
+        });
+
+        document.getElementById('form-add-course').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('course-id').value || 'c_'+Math.random().toString(36).substr(2,9);
+            const courseData = {
+                id, name:document.getElementById('course-name').value, description:document.getElementById('course-desc').value,
+                format:document.getElementById('course-format').value, url:document.getElementById('course-url').value,
+                posterData:document.getElementById('course-poster-base64').value, active:document.getElementById('course-active').checked
+            };
+            const idx = this.state.courses.findIndex(x => x.id===id);
+            if(idx>-1) this.state.courses[idx]=courseData; else this.state.courses.push(courseData);
+            database.ref('courses').set(this.state.courses).then(() => {
+                this.saveLog('Course Saved','Course: '+courseData.name);
+                this.hideSheets(); this.toast('Course Saved');
+            });
+        });
+
+        document.getElementById('form-add-key').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('key-id').value || 'k_'+Math.random().toString(36).substr(2,9);
+            const keyStr = document.getElementById('key-string').value;
+            if(!keyStr.startsWith('dark') || !keyStr.endsWith('ub')) return this.toast('Key must start with "dark" and end with "ub"','error');
+            if(this.state.keys.find(x => x.key===keyStr && x.id!==id)) return this.toast('Passkey already exists','error');
+            let tools = [];
+            const allCb = document.getElementById('chk-tool-all');
+            if(allCb && allCb.checked) { tools=['all']; }
+            else { document.querySelectorAll('.tool-chk:checked').forEach(cb => tools.push(cb.value)); }
+            const existing = this.state.keys.find(x=>x.id===id);
+            const keyData = {
+                id, name:document.getElementById('key-name').value, key:keyStr,
+                limit:parseInt(document.getElementById('key-limit').value)||0,
+                expiry:document.getElementById('key-expiry').value, active:document.getElementById('key-active').checked, tools,
+                uses: existing ? (existing.uses || 0) : 0
+            };
+            const idx = this.state.keys.findIndex(x => x.id===id);
+            if(idx>-1) this.state.keys[idx]=keyData; else this.state.keys.push(keyData);
+            database.ref('keys').set(this.state.keys).then(() => {
+                this.saveLog('Key Saved','Alias: '+keyData.name);
+                this.hideSheets(); this.toast('Access Key Generated');
+            });
+        });
+
+        // Premium Config Form
+        document.getElementById('form-premium-config').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.state.premiumConfig = {
+                bankName: document.getElementById('premium-bank-name').value,
+                accountNumber: document.getElementById('premium-account').value,
+                receiverName: document.getElementById('premium-receiver').value,
+                amount: parseInt(document.getElementById('premium-amount').value) || 500,
+                adminWhatsApp: document.getElementById('premium-admin-wa').value
+            };
+            database.ref('premiumConfig').set(this.state.premiumConfig).then(() => {
+                this.saveLog('Premium Config Updated', 'Premium payment settings saved');
+                this.toast('Payment settings saved');
+            });
+        });
+
+        // Premium Content Form
+        document.getElementById('form-premium-content').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('premium-content-id').value || 'pc_'+Math.random().toString(36).substr(2,9);
+            const iconType = document.getElementById('premium-content-icon-type').value;
+            const data = {
+                id, name: document.getElementById('premium-content-name').value,
+                type: document.getElementById('premium-content-type').value,
+                iconType,
+                icon: iconType==='fa' ? document.getElementById('premium-content-icon-fa').value : '',
+                iconData: iconType==='img' ? document.getElementById('premium-content-icon-base64').value : '',
+                url: document.getElementById('premium-content-url').value,
+                active: document.getElementById('premium-content-active').checked
+            };
+            if(iconType==='img' && !data.iconData) return this.toast('Upload an image icon','error');
+            const idx = this.state.premiumContent.findIndex(x => x.id===id);
+            if(idx>-1) this.state.premiumContent[idx]=data; else this.state.premiumContent.push(data);
+            database.ref('premiumContent').set(this.state.premiumContent).then(() => {
+                this.saveLog('Premium Content Saved', 'Premium: '+data.name);
+                this.hideSheets(); this.toast('Premium content saved');
+            });
+        });
+
+        // Premium Key Form
+        document.getElementById('form-premium-key').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('premium-key-id').value || 'pk_'+Math.random().toString(36).substr(2,9);
+            const keyStr = document.getElementById('premium-key-string').value;
+            if(!keyStr) return this.toast('Enter a premium key string','error');
+            if(this.state.premiumKeys.find(x => x.key===keyStr && x.id!==id)) return this.toast('Premium key already exists','error');
+            const existing = this.state.premiumKeys.find(x=>x.id===id);
+            const data = {
+                id, name: document.getElementById('premium-key-name').value, key: keyStr,
+                limit: parseInt(document.getElementById('premium-key-limit').value)||0,
+                expiry: document.getElementById('premium-key-expiry').value,
+                active: document.getElementById('premium-key-active').checked,
+                uses: existing ? (existing.uses || 0) : 0
+            };
+            const idx = this.state.premiumKeys.findIndex(x => x.id===id);
+            if(idx>-1) this.state.premiumKeys[idx]=data; else this.state.premiumKeys.push(data);
+            database.ref('premiumKeys').set(this.state.premiumKeys).then(() => {
+                this.saveLog('Premium Key Saved', 'Alias: '+data.name);
+                this.hideSheets(); this.toast('Premium key saved');
+            });
+        });
+
+        const processImage = (fileInputId, base64InputId, previewImgId, placeholderId, maxW=256) => {
+            document.getElementById(fileInputId).addEventListener('change', (e) => {
+                const file = e.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w=img.width, h=img.height;
+                        if(w>maxW){h*=maxW/w;w=maxW;}
+                        canvas.width=w; canvas.height=h;
+                        canvas.getContext('2d').drawImage(img,0,0,w,h);
+                        const dataUrl = canvas.toDataURL('image/webp',0.8);
+                        document.getElementById(base64InputId).value = dataUrl;
+                        document.getElementById(previewImgId).src = dataUrl;
+                        document.getElementById(previewImgId).style.display = 'block';
+                        document.getElementById(placeholderId).style.display = 'none';
+                    };
+                    img.src = evt.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        };
+
+        processImage('tool-icon-file','tool-icon-base64','tool-img-preview','tool-img-placeholder',128);
+        processImage('link-icon-file','link-icon-base64','link-img-preview','link-img-placeholder',128);
+        processImage('course-poster-file','course-poster-base64','course-img-preview','course-img-placeholder',400);
+        processImage('premium-content-icon-file','premium-content-icon-base64','premium-content-img-preview','premium-content-img-placeholder',128);
+        // Admin logo - compress to small KB size (80px max, 0.6 quality)
+        document.getElementById('admin-logo-file').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w=img.width, h=img.height;
+                    const maxW = 80;
+                    if(w>maxW){h*=maxW/w;w=maxW;}
+                    canvas.width=w; canvas.height=h;
+                    canvas.getContext('2d').drawImage(img,0,0,w,h);
+                    const dataUrl = canvas.toDataURL('image/webp',0.6); // Lower quality for KB size
+                    document.getElementById('admin-logo-base64').value = dataUrl;
+                    document.getElementById('admin-logo-preview').src = dataUrl;
+                    document.getElementById('admin-logo-preview').style.display = 'block';
+                    document.getElementById('admin-logo-placeholder').style.display = 'none';
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('tool-file').addEventListener('change', (e) => {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => document.getElementById('tool-html').value = evt.target.result;
+            reader.readAsText(file);
+        });
+
+        document.getElementById('tool-icon-fa').addEventListener('input', (e) => { document.getElementById('tool-icon-preview').className = e.target.value; });
+        document.getElementById('link-icon-fa').addEventListener('input', (e) => { document.getElementById('link-icon-preview').className = e.target.value; });
+
+        // Auto-fetch favicon from URL when field loses focus
+        document.getElementById('link-url').addEventListener('blur', () => Admin.autoFetchLinkIcon());
+
+        // Auto-fetch YouTube thumbnail for course poster
+        document.getElementById('course-url').addEventListener('blur', () => Admin.autoFetchCoursePoster());
+
+        // Manual fetch icon function
+        window.Admin.fetchLinkIcon = () => Admin.manualFetchLinkIcon();
+    },
+
+    // Auto-fetch on blur (with toast)
+    autoFetchLinkIcon() {
+        const url = document.getElementById('link-url').value;
+        const iconType = document.getElementById('link-icon-type').value;
+        const hasCustomIcon = document.getElementById('link-icon-base64').value;
+        const hasCustomFA = document.getElementById('link-icon-fa').value !== 'fa-brands fa-android';
+        if(url && !hasCustomIcon && !hasCustomFA && iconType === 'fa'){
+            this.fetchFavicon(url, true);
+        }
+    },
+
+    // Manual fetch with toast feedback
+    manualFetchLinkIcon() {
+        const url = document.getElementById('link-url').value;
+        if(!url){ this.toast('Enter a URL first','error'); return; }
+        const iconType = document.getElementById('link-icon-type').value;
+        const hasCustomIcon = document.getElementById('link-icon-base64').value;
+        if(hasCustomIcon){ this.toast('Custom icon already set','error'); return; }
+        this.fetchFavicon(url, true);
+    },
+
+    // Auto-fetch YouTube thumbnail as course poster
+    autoFetchCoursePoster(showToast) {
+        const url = document.getElementById('course-url').value;
+        if(!url){ if(showToast) this.toast('Enter a URL first','error'); return; }
+        const hasPoster = document.getElementById('course-poster-base64').value;
+        if(hasPoster){ if(showToast) this.toast('Poster already set','error'); return; }
+        let videoId = null;
+        const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if(ytMatch) videoId = ytMatch[1];
+        if(!videoId){ if(showToast) this.toast('Not a YouTube URL','error'); return; }
+        const thumbUrl = 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = 640; c.height = 360;
+            c.getContext('2d').drawImage(img, 0, 0, 640, 360);
+            const dataUrl = c.toDataURL('image/webp', 0.8);
+            document.getElementById('course-poster-base64').value = dataUrl;
+            document.getElementById('course-img-preview').src = dataUrl;
+            document.getElementById('course-img-preview').style.display = 'block';
+            document.getElementById('course-img-placeholder').style.display = 'none';
+            if(showToast) this.toast('YouTube thumbnail fetched!');
+        };
+        img.onerror = () => { if(showToast) this.toast('Could not fetch thumbnail','error'); };
+        img.src = thumbUrl;
+    },
+
+    fetchFavicon(url, showToast) {
+        try {
+            const parsedUrl = new URL(url);
+            const pathLower = parsedUrl.pathname.toLowerCase();
+
+            const extIconMap = {
+                apk:'fa-brands fa-android', zip:'fa-solid fa-file-zipper', rar:'fa-solid fa-file-zipper', '7z':'fa-solid fa-file-zipper',
+                exe:'fa-solid fa-gear', msi:'fa-solid fa-gear', dmg:'fa-brands fa-apple', deb:'fa-brands fa-linux', rpm:'fa-brands fa-linux',
+                pdf:'fa-solid fa-file-pdf', doc:'fa-solid fa-file-word', docx:'fa-solid fa-file-word',
+                xls:'fa-solid fa-file-excel', xlsx:'fa-solid fa-file-excel',
+                mp3:'fa-solid fa-file-audio', mp4:'fa-solid fa-file-video', avi:'fa-solid fa-file-video', mkv:'fa-solid fa-file-video',
+                mov:'fa-solid fa-file-video', webm:'fa-solid fa-file-video', '3gp':'fa-solid fa-file-video', flv:'fa-solid fa-file-video',
+                png:'fa-solid fa-file-image', jpg:'fa-solid fa-file-image', jpeg:'fa-solid fa-file-image', gif:'fa-solid fa-file-image',
+                webp:'fa-solid fa-file-image', svg:'fa-solid fa-file-image',
+                iso:'fa-solid fa-compact-disc', txt:'fa-solid fa-file-lines', csv:'fa-solid fa-file-csv', torrent:'fa-solid fa-magnet'
+            };
+
+            const setExtIcon = (iconClass) => {
+                document.getElementById('link-icon-fa').value = iconClass;
+                document.getElementById('link-icon-type').value = 'fa';
+                this.toggleLinkIconType();
+                document.getElementById('link-icon-preview').className = iconClass;
+            };
+
+            // Determine file extension from URL
+            let ext = '';
+            const match = pathLower.match(/\.([a-z0-9]+)(?:[?#]|$)/);
+            if (match && extIconMap[match[1]]) {
+                ext = match[1];
+            }
+
+            if (ext && extIconMap[ext]) {
+                setExtIcon(extIconMap[ext]);
+                if(showToast) this.toast('Icon set: ' + ext.toUpperCase());
+                return;
+            }
+
+            // If no file type detected, use generic link icon
+            setExtIcon('fa-solid fa-link');
+            if(showToast) this.toast('Generic link icon applied','error');
+        } catch(e) {
+            if(showToast) this.toast('Invalid URL','error');
+        }
+    },
+
+    logout() { sessionStorage.removeItem(this.sessionKey); this.handleRouting(); this.toast('Logged Out Successfully'); },
+
+    switchTab(tabId, el) {
+        this.currentTab = tabId;
+        document.querySelectorAll('.tab-content').forEach(x => x.classList.add('hidden'));
+        document.getElementById('tab-'+tabId).classList.remove('hidden');
+        document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+        if(el) el.classList.add('active');
+        this.updateFab();
+        if(tabId === 'premium') {
+            // Refresh premium data from Firebase
+            database.ref('premiumRequests').once('value', (snap) => {
+                this.state.premiumRequests = snap.val() || [];
+                this.renderAll();
+            });
+        } else {
+            this.renderAll();
+        }
+    },
+
+    updateFab() {
+        let fab = document.getElementById('main-fab');
+        if(!fab) {
+            fab = document.createElement('button');
+            fab.id = 'main-fab';
+            fab.className = 'fab';
+            fab.onclick = () => this.fabAction();
+            document.getElementById('app').appendChild(fab);
+        }
+        const icons = { tools:'fa-plus', links:'fa-plus', courses:'fa-plus', keys:'fa-key', home:'fa-plus', settings:'fa-plus', premium:'fa-plus' };
+        fab.innerHTML = '<i class="fa-solid '+(icons[this.currentTab]||'fa-plus')+'"></i>';
+        fab.style.display = (this.currentTab==='tools'||this.currentTab==='links'||this.currentTab==='courses'||this.currentTab==='keys'||this.currentTab==='premium') ? 'flex' : 'none';
+    },
+
+    fabAction() {
+        const actions = { tools:()=>this.openToolSheet(), links:()=>this.openLinkSheet(), courses:()=>this.openCourseSheet(), keys:()=>this.openKeySheet(), premium:()=>this.openPremiumContentSheet() };
+        if(actions[this.currentTab]) actions[this.currentTab]();
+    },
+
+    showSheet(id) { document.getElementById('overlay').classList.add('active'); document.getElementById(id).classList.add('active'); },
+    hideSheets() { document.getElementById('overlay').classList.remove('active'); document.querySelectorAll('.sheet').forEach(s => s.classList.remove('active')); },
+
+    renderAll() {
+        // Warning for default credentials
+        const defHash = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+        const warnEl = document.getElementById('security-warning');
+        if (this.state.admin.passHash === defHash || !this.state.admin.passHash) {
+            if (!warnEl) {
+                const s = document.createElement('div');
+                s.id = 'security-warning';
+                s.style.cssText = 'grid-column:1/-1;background:rgba(255,69,58,0.12);border:1px solid rgba(255,69,58,0.3);border-radius:12px;padding:14px;font-size:13px;color:var(--accent);display:flex;gap:8px;align-items:center;';
+                s.innerHTML = '<i class="fa-solid fa-shield-halved"></i><div><strong>SECURITY WARNING:</strong> Default password in use! Change it in <strong>Config</strong> tab immediately.</div>';
+                document.querySelector('.stats-grid').prepend(s);
+            }
+        } else if (warnEl) { warnEl.remove(); }
+        document.getElementById('toggle-key-system').checked = this.state.admin.keySystemActive!==false;
+        document.getElementById('stat-keys').textContent = this.state.keys.length;
+        document.getElementById('stat-tools').textContent = this.state.tools.length;
+        document.getElementById('stat-links').textContent = this.state.links.length;
+        document.getElementById('stat-courses').textContent = this.state.courses.length;
+        document.getElementById('stat-logs').textContent = this.state.logs.length;
+
+        document.getElementById('list-logs').innerHTML = this.state.logs.slice(0,15).map(log => {
+            const d = new Date(log.time);
+            return '<div class="list-item" style="padding:11px 16px;"><div class="item-info"><div class="item-title" style="font-size:13px;font-weight:600;">'+h(log.action)+'</div><div class="item-sub" style="font-size:10px;">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' &bull; '+h(log.details)+'</div></div></div>';
+        }).join('') || '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No logs found.</div>';
+
+        document.getElementById('list-tools').innerHTML = this.state.tools.map(t => {
+            const ic = t.iconType==='img' && t.iconData ? '<img src="'+h(t.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(t.icon)+'" style="color:var(--primary);"></i>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(t.name)+'</div><div class="item-sub"><span class="badge '+(t.active?'active':'inactive')+'">'+(t.active?'Active':'Disabled')+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editTool(\''+h(t.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delTool(\''+h(t.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No HTML Tools.</div>';
+
+        document.getElementById('list-links').innerHTML = this.state.links.map(l => {
+            const ic = l.iconType==='img' && l.iconData ? '<img src="'+h(l.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(l.icon)+'" style="color:var(--premium);"></i>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(l.name)+'</div><div class="item-sub"><span class="badge '+(l.active?'active':'inactive')+'">'+(l.active?'Active':'Disabled')+'</span> External Link</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editLink(\''+h(l.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delLink(\''+h(l.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No APKs / Links.</div>';
+
+        document.getElementById('list-courses').innerHTML = this.state.courses.map(c => {
+            const poster = c.posterData ? '<img src="'+h(c.posterData)+'" style="width:36px;height:36px;object-fit:cover;border-radius:7px;">' : '<div style="width:36px;height:36px;border-radius:7px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-graduation-cap" style="font-size:14px;"></i></div>';
+            return '<div class="list-item"><div class="item-info" style="flex-direction:row;align-items:center;gap:10px;">'+poster+'<div style="display:flex;flex-direction:column;gap:3px;"><div class="item-title">'+h(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+h((c.format||'').toUpperCase())+'</div></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editCourse(\''+h(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delCourse(\''+h(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No Courses Available.</div>';
+
+        document.getElementById('list-keys').innerHTML = this.state.keys.map(k => {
+            const bClass = k.id==='k_master' ? 'badge-admin' : (k.active?'active':'inactive');
+            const uses = k.uses || 0;
+            const limit = k.limit===0 ? '&infin;' : k.limit;
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+h(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--primary);margin-top:2px;font-size:12px;">'+h(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+bClass+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editKey(\''+h(k.id)+'\')"><i class="fa-solid fa-pen"></i></button>'+(k.id!=='k_master'?'<button class="btn-danger btn-sm" onclick="Admin.delKey(\''+h(k.id)+'\')"><i class="fa-solid fa-trash"></i></button>':'')+'</div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No keys generated.</div>';
+
+        document.getElementById('set-admin-user').value = this.state.admin.user||'';
+        document.getElementById('set-wa-link').value = this.state.admin.waLink||'';
+        const logo = this.state.admin.logo || '';
+        if(logo){document.getElementById('admin-logo-base64').value=logo;document.getElementById('admin-logo-preview').src=logo;document.getElementById('admin-logo-preview').style.display='block';document.getElementById('admin-logo-placeholder').style.display='none';}
+        else{document.getElementById('admin-logo-preview').style.display='none';document.getElementById('admin-logo-placeholder').style.display='block';document.getElementById('admin-logo-base64').value='';}
+        const fj = this.state.admin.forceJoin || { active:false, telegram:'', whatsapp:'', note:'' };
+        document.getElementById('set-fj-active').checked = fj.active;
+        document.getElementById('set-fj-tg').value = fj.telegram||'';
+        document.getElementById('set-fj-wa').value = fj.whatsapp||'';
+        document.getElementById('set-fj-note').value = fj.note||'';
+
+        // Premium Config
+        document.getElementById('premium-bank-name').value = this.state.premiumConfig.bankName||'EasyPaisa';
+        document.getElementById('premium-account').value = this.state.premiumConfig.accountNumber||'03238693440';
+        document.getElementById('premium-receiver').value = this.state.premiumConfig.receiverName||'Receiver';
+        document.getElementById('premium-amount').value = this.state.premiumConfig.amount||500;
+        document.getElementById('premium-admin-wa').value = this.state.premiumConfig.adminWhatsApp||'';
+
+        // Premium Content List
+        document.getElementById('list-premium-content').innerHTML = this.state.premiumContent.map(c => {
+            const ic = c.iconType==='img' && c.iconData ? '<img src="'+h(c.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(c.icon)+'" style="color:var(--premium);"></i>';
+            const typeMap = { course:'Course', apk:'APK', video:'Video', image:'Image', zip:'ZIP' };
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+(typeMap[c.type]||c.type||'')+'</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumContent(\''+h(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumContent(\''+h(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No premium content.</div>';
+
+        // Premium Requests List
+        document.getElementById('list-premium-requests').innerHTML = this.state.premiumRequests.map(r => {
+            const st = r.status||'pending';
+            const stColor = st==='approved' ? 'var(--success)' : (st==='denied' ? 'var(--accent)' : 'var(--premium)');
+            const stLabel = st==='approved' ? 'Approved' : (st==='denied' ? 'Denied' : 'Pending');
+            const d = new Date(r.time);
+            const timeStr = d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            const approveBtn = st==='pending' ? '<button class="btn-primary btn-sm" onclick="Admin.approveRequest(\''+h(r.id)+'\')"><i class="fa-solid fa-check"></i></button><button class="btn-danger btn-sm" onclick="Admin.denyRequest(\''+h(r.id)+'\')"><i class="fa-solid fa-xmark"></i></button>' : '';
+            return '<div class="list-item"><div class="item-info"><div class="item-title" style="font-size:13px;"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> '+h(r.whatsapp)+'</div><div class="item-sub">'+timeStr+' &bull; <span style="color:'+stColor+';font-weight:600;">'+stLabel+'</span></div></div><div class="item-actions">'+approveBtn+'</div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No payment requests.</div>';
+
+        // Premium Keys List
+        document.getElementById('list-premium-keys').innerHTML = this.state.premiumKeys.map(k => {
+            const uses = k.uses||0; const limit = k.limit===0 ? '&infin;' : k.limit;
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+h(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--premium);margin-top:2px;font-size:12px;">'+h(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+(k.active?'active':'inactive')+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumKey(\''+h(k.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumKey(\''+h(k.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+        }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No premium keys.</div>';
+    },
+
+    toggleToolIconType() {
+        const t = document.getElementById('tool-icon-type').value;
+        document.getElementById('tool-group-icon-fa').classList.toggle('hidden',t!=='fa');
+        document.getElementById('tool-group-icon-img').classList.toggle('hidden',t!=='img');
+    },
+
+    toggleLinkIconType() {
+        const t = document.getElementById('link-icon-type').value;
+        document.getElementById('link-group-icon-fa').classList.toggle('hidden',t!=='fa');
+        document.getElementById('link-group-icon-img').classList.toggle('hidden',t!=='img');
+    },
+
+    randomKeyString() { document.getElementById('key-string').value = 'dark'+Math.random().toString(36).substring(2,8)+'ub'; },
+
+    populateToolCheckboxes(selectedTools=[]) {
+        const container = document.getElementById('key-tools-list');
+        let html = '<label class="checkbox-label" style="border-bottom:1px solid var(--card-border);padding-bottom:8px;margin-bottom:4px;"><input type="checkbox" value="all" id="chk-tool-all" '+(selectedTools.includes('all')?'checked':'')+' onchange="Admin.toggleAllTools(this)"><strong style="color:var(--premium);">[All Access] Master Key</strong></label>';
+        if(this.state.tools.length>0) {
+            html += '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;margin:6px 0 3px;letter-spacing:1px;">HTML Tools</div>';
+            this.state.tools.forEach(t => {
+                const ic = t.iconType==='img' ? '<img src="'+h(t.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+h(t.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
+                html += '<label class="checkbox-label"><input type="checkbox" value="'+h(t.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(t.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+h(t.name)+'</label>';
+            });
+        }
+        if(this.state.links.length>0) {
+            html += '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;margin:10px 0 3px;letter-spacing:1px;">APKs & Links</div>';
+            this.state.links.forEach(l => {
+                const ic = l.iconType==='img' ? '<img src="'+h(l.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+h(l.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
+                html += '<label class="checkbox-label"><input type="checkbox" value="'+h(l.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(l.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+h(l.name)+'</label>';
+            });
+        }
+        container.innerHTML = html;
+    },
+
+    toggleAllTools(cb) { document.querySelectorAll('.tool-chk').forEach(el => { el.disabled=cb.checked; if(cb.checked) el.checked=true; }); },
+
+    openToolSheet() { document.getElementById('form-add-tool').reset(); document.getElementById('tool-id').value=''; document.getElementById('sheet-tool-title').textContent='Upload HTML Tool'; document.getElementById('tool-icon-type').value='fa'; this.toggleToolIconType(); document.getElementById('tool-icon-fa').value='fa-solid fa-cube'; document.getElementById('tool-icon-preview').className='fa-solid fa-cube'; document.getElementById('tool-icon-base64').value=''; document.getElementById('tool-img-preview').style.display='none'; document.getElementById('tool-img-placeholder').style.display='block'; document.getElementById('tool-active').checked=true; this.showSheet('sheet-tool'); },
+
+    editTool(id) {
+        const t = this.state.tools.find(x=>x.id===id); if(!t) return;
+        document.getElementById('sheet-tool-title').textContent='Edit HTML Tool';
+        document.getElementById('tool-id').value=t.id;
+        document.getElementById('tool-name').value=t.name;
+        document.getElementById('tool-icon-type').value=t.iconType||'fa'; this.toggleToolIconType();
+        if(t.iconType==='img'){document.getElementById('tool-icon-base64').value=t.iconData||'';if(t.iconData){document.getElementById('tool-img-preview').src=t.iconData;document.getElementById('tool-img-preview').style.display='block';document.getElementById('tool-img-placeholder').style.display='none';}else{document.getElementById('tool-img-preview').style.display='none';document.getElementById('tool-img-placeholder').style.display='block';}}
+        else{document.getElementById('tool-icon-fa').value=t.icon||'fa-solid fa-cube';document.getElementById('tool-icon-preview').className=t.icon||'fa-solid fa-cube';}
+        document.getElementById('tool-html').value=t.html||''; document.getElementById('tool-active').checked=t.active; this.showSheet('sheet-tool');
+    },
+
+    delTool(id) { if(confirm('Delete this tool permanently?')){this.state.tools=this.state.tools.filter(t=>t.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});database.ref('tools').set(this.state.tools).then(()=>database.ref('keys').set(this.state.keys)).then(()=>{this.saveLog('Tool Deleted','HTML Tool ID: '+id);this.toast('HTML Tool Removed');}).catch(()=>this.toast('Failed to delete tool','error'));} },
+
+    openLinkSheet() { document.getElementById('form-add-link').reset(); document.getElementById('link-id').value=''; document.getElementById('sheet-link-title').textContent='Add APK / Link'; document.getElementById('link-icon-type').value='fa'; this.toggleLinkIconType(); document.getElementById('link-icon-fa').value='fa-brands fa-android'; document.getElementById('link-icon-preview').className='fa-brands fa-android'; document.getElementById('link-icon-base64').value=''; document.getElementById('link-img-preview').style.display='none'; document.getElementById('link-img-placeholder').style.display='block'; document.getElementById('link-active').checked=true; this.showSheet('sheet-link'); },
+
+    editLink(id) {
+        const l = this.state.links.find(x=>x.id===id); if(!l) return;
+        document.getElementById('sheet-link-title').textContent='Edit APK / Link';
+        document.getElementById('link-id').value=l.id;
+        document.getElementById('link-name').value=l.name;
+        document.getElementById('link-icon-type').value=l.iconType||'fa'; this.toggleLinkIconType();
+        if(l.iconType==='img'){document.getElementById('link-icon-base64').value=l.iconData||'';if(l.iconData){document.getElementById('link-img-preview').src=l.iconData;document.getElementById('link-img-preview').style.display='block';document.getElementById('link-img-placeholder').style.display='none';}else{document.getElementById('link-img-preview').style.display='none';document.getElementById('link-img-placeholder').style.display='block';}}
+        else{document.getElementById('link-icon-fa').value=l.icon||'fa-brands fa-android';document.getElementById('link-icon-preview').className=l.icon||'fa-brands fa-android';}
+        document.getElementById('link-url').value=l.url||''; document.getElementById('link-active').checked=l.active; this.showSheet('sheet-link');
+    },
+
+    delLink(id) { if(confirm('Delete this App/Link permanently?')){this.state.links=this.state.links.filter(l=>l.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});database.ref('links').set(this.state.links).then(()=>database.ref('keys').set(this.state.keys)).then(()=>{this.saveLog('Link Deleted','Link ID: '+id);this.toast('APK / Link Removed');}).catch(()=>this.toast('Failed to delete link','error'));} },
+
+    openCourseSheet() { document.getElementById('form-add-course').reset(); document.getElementById('course-id').value=''; document.getElementById('sheet-course-title').textContent='Add Course'; document.getElementById('course-poster-base64').value=''; document.getElementById('course-img-preview').style.display='none'; document.getElementById('course-img-placeholder').style.display='block'; document.getElementById('course-active').checked=true; this.showSheet('sheet-course'); },
+
+    editCourse(id) {
+        const c = this.state.courses.find(x=>x.id===id); if(!c) return;
+        document.getElementById('sheet-course-title').textContent='Edit Course';
+        document.getElementById('course-id').value=c.id;
+        document.getElementById('course-name').value=c.name;
+        document.getElementById('course-desc').value=c.description||'';
+        document.getElementById('course-format').value=c.format||'video';
+        document.getElementById('course-url').value=c.url||'';
+        document.getElementById('course-active').checked=c.active;
+        document.getElementById('course-poster-base64').value=c.posterData||'';
+        if(c.posterData){document.getElementById('course-img-preview').src=c.posterData;document.getElementById('course-img-preview').style.display='block';document.getElementById('course-img-placeholder').style.display='none';}
+        else{document.getElementById('course-img-preview').style.display='none';document.getElementById('course-img-placeholder').style.display='block';}
+        this.showSheet('sheet-course');
+    },
+
+    delCourse(id) { if(confirm('Delete this Course permanently?')){this.state.courses=this.state.courses.filter(c=>c.id!==id);database.ref('courses').set(this.state.courses).then(()=>{this.saveLog('Course Deleted','Course ID: '+id);this.toast('Course Removed');});} },
+
+    openKeySheet() { document.getElementById('form-add-key').reset(); document.getElementById('key-id').value=''; document.getElementById('sheet-key-title').textContent='Generate Passkey'; this.populateToolCheckboxes(['all']); this.showSheet('sheet-key'); },
+
+    editKey(id) {
+        const k = this.state.keys.find(x=>x.id===id); if(!k) return;
+        document.getElementById('sheet-key-title').textContent='Edit Passkey';
+        document.getElementById('key-id').value=k.id;
+        document.getElementById('key-name').value=k.name;
+        document.getElementById('key-string').value=k.key;
+        document.getElementById('key-limit').value=k.limit;
+        document.getElementById('key-expiry').value=k.expiry||'';
+        document.getElementById('key-active').checked=k.active;
+        this.populateToolCheckboxes(k.tools||[]); this.showSheet('sheet-key');
+    },
+
+    delKey(id) { if(confirm('Revoke and delete this passkey?')){this.state.keys=this.state.keys.filter(k=>k.id!==id);database.ref('keys').set(this.state.keys).then(()=>{this.saveLog('Key Revoked','ID: '+id);this.toast('Key Deleted');});} },
+
+    // ===== PREMIUM METHODS =====
+    togglePremiumContentIconType() {
+        const t = document.getElementById('premium-content-icon-type').value;
+        document.getElementById('premium-content-group-icon-fa').classList.toggle('hidden',t!=='fa');
+        document.getElementById('premium-content-group-icon-img').classList.toggle('hidden',t!=='img');
+    },
+
+    onPremiumContentTypeChange() {
+        const type = document.getElementById('premium-content-type').value;
+        const iconMap = { course:'fa-solid fa-graduation-cap', apk:'fa-brands fa-android', video:'fa-solid fa-video', image:'fa-solid fa-image', zip:'fa-solid fa-file-zipper' };
+        if(iconMap[type]) {
+            document.getElementById('premium-content-icon-fa').value = iconMap[type];
+            document.getElementById('premium-content-icon-preview').className = iconMap[type];
+        }
+    },
+
+    openPremiumContentSheet() {
+        document.getElementById('form-premium-content').reset();
+        document.getElementById('premium-content-id').value='';
+        document.getElementById('sheet-premium-content-title').textContent='Add Premium Content';
+        document.getElementById('premium-content-icon-type').value='fa';
+        this.togglePremiumContentIconType();
+        this.onPremiumContentTypeChange();
+        document.getElementById('premium-content-icon-base64').value='';
+        document.getElementById('premium-content-img-preview').style.display='none';
+        document.getElementById('premium-content-img-placeholder').style.display='block';
+        document.getElementById('premium-content-active').checked=true;
+        this.showSheet('sheet-premium-content');
+    },
+
+    editPremiumContent(id) {
+        const c = this.state.premiumContent.find(x=>x.id===id); if(!c) return;
+        document.getElementById('sheet-premium-content-title').textContent='Edit Premium Content';
+        document.getElementById('premium-content-id').value=c.id;
+        document.getElementById('premium-content-name').value=c.name;
+        document.getElementById('premium-content-type').value=c.type||'course';
+        document.getElementById('premium-content-icon-type').value=c.iconType||'fa';
+        this.togglePremiumContentIconType();
+        if(c.iconType==='img') {
+            document.getElementById('premium-content-icon-base64').value=c.iconData||'';
+            if(c.iconData){document.getElementById('premium-content-img-preview').src=c.iconData;document.getElementById('premium-content-img-preview').style.display='block';document.getElementById('premium-content-img-placeholder').style.display='none';}
+            else{document.getElementById('premium-content-img-preview').style.display='none';document.getElementById('premium-content-img-placeholder').style.display='block';}
+        } else {
+            document.getElementById('premium-content-icon-fa').value=c.icon||'fa-solid fa-cube';
+            document.getElementById('premium-content-icon-preview').className=c.icon||'fa-solid fa-cube';
+        }
+        document.getElementById('premium-content-url').value=c.url||'';
+        document.getElementById('premium-content-active').checked=c.active;
+        this.showSheet('sheet-premium-content');
+    },
+
+    delPremiumContent(id) {
+        if(confirm('Delete this premium content permanently?')) {
+            this.state.premiumContent = this.state.premiumContent.filter(c=>c.id!==id);
+            database.ref('premiumContent').set(this.state.premiumContent).then(() => {
+                this.saveLog('Premium Content Deleted','ID: '+id);
+                this.toast('Premium content removed');
+            });
+        }
+    },
+
+    openPremiumKeySheet() {
+        document.getElementById('form-premium-key').reset();
+        document.getElementById('premium-key-id').value='';
+        document.getElementById('sheet-premium-key-title').textContent='Generate Premium Key';
+        document.getElementById('premium-key-string').value='prem_'+Math.random().toString(36).substring(2,10);
+        document.getElementById('premium-key-active').checked=true;
+        this.showSheet('sheet-premium-key');
+    },
+
+    editPremiumKey(id) {
+        const k = this.state.premiumKeys.find(x=>x.id===id); if(!k) return;
+        document.getElementById('sheet-premium-key-title').textContent='Edit Premium Key';
+        document.getElementById('premium-key-id').value=k.id;
+        document.getElementById('premium-key-name').value=k.name;
+        document.getElementById('premium-key-string').value=k.key;
+        document.getElementById('premium-key-limit').value=k.limit;
+        document.getElementById('premium-key-expiry').value=k.expiry||'';
+        document.getElementById('premium-key-active').checked=k.active;
+        this.showSheet('sheet-premium-key');
+    },
+
+    delPremiumKey(id) {
+        if(confirm('Delete this premium key permanently?')) {
+            this.state.premiumKeys = this.state.premiumKeys.filter(k=>k.id!==id);
+            database.ref('premiumKeys').set(this.state.premiumKeys).then(() => {
+                this.saveLog('Premium Key Deleted','ID: '+id);
+                this.toast('Premium key removed');
+            });
+        }
+    },
+
+    approveRequest(id) {
+        const req = this.state.premiumRequests.find(x=>x.id===id); if(!req) return;
+        req.status = 'approved';
+        database.ref('premiumRequests').set(this.state.premiumRequests).then(() => {
+            this.saveLog('Payment Approved','WhatsApp: '+req.whatsapp);
+            this.toast('Payment request approved');
+            this.renderAll();
+        }).catch(() => this.toast('Failed to approve request','error'));
+    },
+
+    denyRequest(id) {
+        const req = this.state.premiumRequests.find(x=>x.id===id); if(!req) return;
+        req.status = 'denied';
+        database.ref('premiumRequests').set(this.state.premiumRequests).then(() => {
+            this.saveLog('Payment Denied','WhatsApp: '+req.whatsapp);
+            this.toast('Payment request denied');
+            this.renderAll();
+        }).catch(() => this.toast('Failed to deny request','error'));
+    }
+};
+
+window.Admin = Admin;
+window.onload = () => Admin.init();
+</script>
+</body>
+</html>
