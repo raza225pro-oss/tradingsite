@@ -334,8 +334,9 @@ body { background: var(--bg); background-image: url("data:image/svg+xml,%3Csvg x
         <div class="dash-content" id="dash-content"></div>
         <div class="bottom-nav">
             <div class="nav-item active" onclick="App.switchTab('tools',this)"><i class="fa-solid fa-chart-line"></i>Tools</div>
-            <div class="nav-item" onclick="App.switchTab('apks',this)"><i class="fa-solid fa-bolt"></i>Signals</div>
-            <div class="nav-item" onclick="App.switchTab('courses',this)"><i class="fa-solid fa-graduation-cap"></i>Academy</div>
+            <div class="nav-item" onclick="App.switchTab('apks',this)"><i class="fa-solid fa-robot"></i>Signal Bots</div>
+            <div class="nav-item" onclick="App.switchTab('courses',this)"><i class="fa-solid fa-graduation-cap"></i>Courses</div>
+            <div class="nav-item" onclick="App.switchTab('pdfbooks',this)"><i class="fa-solid fa-book"></i>PDF Books</div>
             <div class="nav-item" onclick="App.switchTab('profile',this)"><i class="fa-solid fa-user"></i>Profile</div>
             <div class="nav-item" onclick="App.switchTab('premium',this)"><i class="fa-solid fa-crown"></i>VIP</div>
         </div>
@@ -346,7 +347,7 @@ body { background: var(--bg); background-image: url("data:image/svg+xml,%3Csvg x
 const h = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 const App = {
-    state: { admin:{}, keys:[], tools:[], links:[], courses:[], premiumConfig:{}, premiumContent:[], premiumKeys:[] },
+    state: { admin:{}, keys:[], tools:[], links:[], courses:[], pdfBooks:[], premiumConfig:{}, premiumContent:[], premiumKeys:[] },
     currentTab: 'tools',
     sessionKey: 'rv_session',
     fjSessionKey: 'rv_fj_verified',
@@ -412,7 +413,7 @@ const App = {
                 const defaults = {
                     admin: { user:'admin', pass:'admin', waLink:'', keySystemActive:true, forceJoin:{ active:true, telegram:'', whatsapp:'', note:'Join our official channel to unlock the tools and get latest updates!' } },
                     keys: [{ id:'k_master', key:'darkmasterub', name:'Master Access', limit:0, uses:0, expiry:'', active:true, tools:['all'] }],
-                    tools: [], links: [], courses: [], premiumConfig:{}, premiumContent:[], premiumKeys:[]
+                    tools: [], links: [], courses: [], pdfBooks:[], premiumConfig:{}, premiumContent:[], premiumKeys:[]
                 };
                 await SB.save(defaults);
                 data = await SB.load();
@@ -430,6 +431,7 @@ const App = {
         this.state.tools = data.tools || [];
         this.state.links = data.links || [];
         this.state.courses = data.courses || [];
+        this.state.pdfBooks = data.pdfBooks || [];
         this.state.premiumConfig = data.premiumConfig || {};
         this.state.premiumContent = data.premiumContent || [];
         this.state.premiumKeys = data.premiumKeys || [];
@@ -695,9 +697,9 @@ const App = {
             if (query) links = links.filter(l => l.name.toLowerCase().includes(query));
 
             if (!links.length) {
-                content.innerHTML = '<div class="section-title">APPS & SIGNALS</div><div class="empty-state"><i class="fa-solid fa-bolt"></i><span>No apps or signals assigned.</span></div>';
+                content.innerHTML = '<div class="section-title">SIGNAL BOTS</div><div class="empty-state"><i class="fa-solid fa-robot"></i><span>No signal bots assigned.</span></div>';
             } else {
-                content.innerHTML = '<div class="section-title">APPS & SIGNALS</div><div class="apk-grid">' + links.map(l => {
+                content.innerHTML = '<div class="section-title">SIGNAL BOTS</div><div class="apk-grid">' + links.map(l => {
                     const icon = l.iconType === 'img' && l.iconData ? '<img src="'+h(l.iconData)+'">' : '<i class="'+h(l.icon||'fa-brands fa-android')+'" style="color:var(--gold);"></i>';
                     return '<div class="apk-card" data-link-url="'+h(l.url)+'"><div class="apk-badge">APK/APP</div><div class="apk-icon">'+icon+'</div><div class="apk-name">'+h(l.name)+'</div></div>';
                 }).join('') + '</div>';
@@ -707,12 +709,23 @@ const App = {
             if (query) courses = courses.filter(c => c.name.toLowerCase().includes(query));
 
             if (!courses.length) {
-                content.innerHTML = '<div class="section-title">TRADING ACADEMY</div><div class="empty-state"><i class="fa-solid fa-graduation-cap"></i><span>No courses available yet.</span></div>';
+                content.innerHTML = '<div class="section-title">COURSES</div><div class="empty-state"><i class="fa-solid fa-graduation-cap"></i><span>No courses available yet.</span></div>';
             } else {
-                content.innerHTML = '<div class="section-title">TRADING ACADEMY</div>' + courses.map(c => {
+                content.innerHTML = '<div class="section-title">COURSES</div>' + courses.map(c => {
                     const poster = c.posterData ? '<img src="'+h(c.posterData)+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">' : '<i class="fa-solid fa-graduation-cap" style="color:var(--cyan);font-size:1.2rem;"></i>';
                     const desc = c.description ? (c.description.length>50?c.description.substring(0,50)+'...':c.description) : '';
                     return '<div class="list-item-card" data-course-url="'+h(c.url)+'" style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;"><div style="width:56px;height:40px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+poster+'</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">'+h(c.name)+'</div>'+(desc?'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h(desc)+'</div>':'')+'<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">'+h((c.format||'Course').toUpperCase())+'</div></div><i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:12px;"></i></div>';
+                }).join('');
+            }
+        } else if (this.currentTab === 'pdfbooks') {
+            let books = this.state.pdfBooks.filter(b => b.active);
+            if (query) books = books.filter(b => b.name.toLowerCase().includes(query));
+            if (!books.length) {
+                content.innerHTML = '<div class="section-title">PDF BOOKS</div><div class="empty-state"><i class="fa-solid fa-book"></i><span>No PDF books available yet.</span></div>';
+            } else {
+                content.innerHTML = '<div class="section-title">PDF BOOKS</div>' + books.map(b => {
+                    const cover = b.coverData ? '<img src="'+h(b.coverData)+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">' : '<i class="fa-solid fa-file-pdf" style="color:var(--red);font-size:1.5rem;"></i>';
+                    return '<div class="list-item-card" onclick="window.open(\''+h(b.url)+'\',\'_blank\')" style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;"><div style="width:44px;height:56px;border-radius:10px;overflow:hidden;background:rgba(255,59,78,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+cover+'</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">'+h(b.name)+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">PDF Book</div></div><i class="fa-solid fa-download" style="color:var(--red);font-size:12px;"></i></div>';
                 }).join('');
             }
         } else if (this.currentTab === 'profile') {
@@ -810,23 +823,27 @@ const App = {
         }
     },
 
-    submitPremiumKey(e) {
+    async submitPremiumKey(e) {
         e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...'; }
         const keyStr = document.getElementById('premium-key-input').value.trim();
-        if (!keyStr) { this.toast('Enter a premium key','error'); return; }
+        if (!keyStr) { this.toast('Enter a premium key','error'); if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium';} return; }
         const keyData = this.state.premiumKeys.find(k => k.key === keyStr && k.active);
-        if (!keyData) { this.toast('Invalid or inactive premium key','error'); return; }
-        if (keyData.expiry && new Date(keyData.expiry) < new Date()) { this.toast('This premium key has expired','error'); return; }
+        if (!keyData) { this.toast('Invalid or inactive premium key','error'); if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium';} return; }
+        if (keyData.expiry && new Date(keyData.expiry) < new Date()) { this.toast('This premium key has expired','error'); if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium';} return; }
         const keyIndex = this.state.premiumKeys.findIndex(k => k.id === keyData.id);
         const newCount = (keyData.uses || 0) + 1;
         if (keyData.limit > 0 && newCount > keyData.limit) {
             this.toast('Premium key usage limit reached','error');
+            if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium';}
             return;
         }
         this.state.premiumKeys[keyIndex].uses = newCount;
-        this.persist();
+        try { await this.persist(); } catch(_) {}
         keyData.uses = newCount;
         sessionStorage.setItem(this.premiumSessionKey, JSON.stringify({ access: true, method: 'key', key: keyStr }));
+        if(btn){btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium';}
         this.toast('Premium unlocked with key!');
         this.renderPremiumContent();
     },
