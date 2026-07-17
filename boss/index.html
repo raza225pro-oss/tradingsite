@@ -870,8 +870,6 @@ const Admin = {
             });
         });
 
-        });
-
         const processImage = (fileInputId, base64InputId, previewImgId, placeholderId, maxW=256) => {
             document.getElementById(fileInputId).addEventListener('change', (e) => {
                 const file = e.target.files[0]; if(!file) return;
@@ -1383,7 +1381,7 @@ document.getElementById('list-premium-keys').innerHTML = this.state.premiumKeys.
             this.toast('Payment request denied');
             this.renderAll();
         }).catch(() => this.toast('Failed to deny request','error'));
-    }
+    },
     // ===== PDF BOOKS =====
     openPDFBookSheet() {
         document.getElementById('form-pdfbook').reset();
