@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/boss", "destination": "/boss/index.html" },
+    { "source": "/boss/(.*)", "destination": "/boss/index.html" },
+    { "source": "/(.*)", "destination": "/user.html" }
+  ]
+}

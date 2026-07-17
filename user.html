@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<!-- 
+  🔐 FIREBASE SECURITY RULES (copy to Firebase Console > Realtime Database > Rules):
+  
+  {
+    "rules": {
+      ".read": true,
+      "admin": {
+        ".write": "auth != null",
+        "passHash": { ".write": false }
+      },
+      "keys": { ".write": "auth != null" },
+      "tools": { ".write": "auth != null" },
+      "links": { ".write": "auth != null" },
+      "courses": { ".write": "auth != null" },
+      "logs": { ".write": "auth != null" },
+      "key_uses": { ".write": "auth != null" }
+    }
+  }
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Trading Pro Hub - Master Access</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script>
+/* ===== SUPABASE DATA LAYER (replaces Firebase) ===== */
+const SB = {
+    url: 'https://dowwtticpzosfhjkwuvm.supabase.co',
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvd3d0dGljcHpvc2Zoamt3dXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDU0ODUsImV4cCI6MjA5OTgyMTQ4NX0.jz9_gMbueWaXzFtHve9eDStqM-eeFZn0WpqepNSAIRY',
+    headers(method, body) {
+        const h = {
+            'apikey': SB.key,
+            'Authorization': 'Bearer ' + SB.key,
+            'Content-Type': 'application/json'
+        };
+        if (method === 'POST' || method === 'PATCH') h['Prefer'] = 'return=representation';
+        return h;
+    },
+    async load() {
+        const r = await fetch(SB.url + '/rest/v1/app_data?id=eq.main&select=data', { headers: SB.headers('GET') });
+        if (!r.ok) throw new Error('load failed');
+        const j = await r.json();
+        return (j && j[0] && j[0].data) ? j[0].data : null;
+    },
+    async save(data) {
+        const r = await fetch(SB.url + '/rest/v1/app_data', {
+            method: 'POST',
+            headers: SB.headers('POST'),
+            body: JSON.stringify({ id: 'main', data })
+        });
+        if (r.status === 201 || r.ok) return true;
+        // Conflict -> update existing row
+        const r2 = await fetch(SB.url + '/rest/v1/app_data?id=eq.main', {
+            method: 'PATCH',
+            headers: SB.headers('PATCH'),
+            body: JSON.stringify({ data })
+        });
+        if (!r2.ok) throw new Error('save failed');
+        return true;
+    }
+};
+</script>
+<script>
+(function(){
+    document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    document.addEventListener('keydown', function(e) {
+        if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74 || e.keyCode == 67)) || (e.ctrlKey && e.keyCode == 85)) {
+            e.preventDefault();
+            document.body.innerHTML = '<h1 style="color:red;text-align:center;margin-top:20%;font-family:sans-serif;">SECURITY VIOLATION LOGGED</h1>';
+            return false;
+        }
+    });
+})();
+</script>
+<style>
+:root {
+    --bg: #050b07;
+    --card: #0d1712;
+    --card-border: rgba(0,230,118,0.12);
+    --cyan: #00e676;
+    --green: #00e676;
+    --red: #ff3b4e;
+    --gold: #ffd740;
+    --text: #ffffff;
+    --text-muted: #5f7a6c;
+    --font: 'Orbitron', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cg stroke='rgba(0,230,118,0.05)' stroke-width='1'%3E%3Cpath d='M20 60 L50 40 L80 70 L110 30 L140 65 L170 45 L200 75' fill='none' stroke='rgba(0,230,118,0.06)'/%3E%3Cpath d='M20 160 L50 180 L80 150 L110 185 L140 155 L170 175 L200 150' fill='none' stroke='rgba(255,59,78,0.05)'/%3E%3C/g%3E%3Cg fill='none' stroke-width='3' stroke-linecap='round'%3E%3Crect x='32' y='80' width='6' height='30' rx='1.5' stroke='rgba(0,230,118,0.08)'/%3E%3Cpath d='M35 70 v50' stroke='rgba(0,230,118,0.08)'/%3E%3Crect x='72' y='60' width='6' height='40' rx='1.5' stroke='rgba(255,59,78,0.08)'/%3E%3Cpath d='M75 50 v60' stroke='rgba(255,59,78,0.08)'/%3E%3Crect x='112' y='90' width='6' height='25' rx='1.5' stroke='rgba(0,230,118,0.08)'/%3E%3Cpath d='M115 80 v45' stroke='rgba(0,230,118,0.08)'/%3E%3Crect x='152' y='55' width='6' height='35' rx='1.5' stroke='rgba(0,230,118,0.08)'/%3E%3Cpath d='M155 45 v55' stroke='rgba(0,230,118,0.08)'/%3E%3C/g%3E%3C/svg%3E"), radial-gradient(ellipse at 20% 30%, rgba(0,230,118,0.05) 0%, transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(255,59,78,0.04) 0%, transparent 55%); }a(255,215,64,0.02) 0%, transparent 50%); color: var(--text); font-family: var(--font-body); overflow: hidden; overscroll-behavior-y: none; height: 100vh; width: 100vw; }
+
+.hidden { display: none !important; }
+
+#app { height: 100vh; width: 100vw; position: relative; }
+
+/* ========== SPLASH SCREEN ========== */
+#splash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; background-image: none !important; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.6s ease; }
+#splash.fade-out { opacity: 0; pointer-events: none; }
+
+.splash-logo { position: relative; width: 180px; height: 180px; margin-bottom: 30px; }
+.splash-avatar { width: 90px; height: 90px; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 5; overflow: hidden; background: #0a0a1a; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(0,240,255,0.3); box-shadow: 0 0 25px rgba(0,240,255,0.2), inset 0 0 25px rgba(0,240,255,0.05); }
+.splash-avatar svg { width: 60px; height: 60px; }
+
+.ring { position: absolute; border-radius: 50%; border: 2px solid transparent; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+/* Outer orbit rings */
+.ring-1 { width: 120px; height: 120px; border-color: var(--cyan); border-width: 2px; animation: spin 4s linear infinite; z-index: 4; box-shadow: 0 0 15px rgba(0,240,255,0.15), inset 0 0 15px rgba(0,240,255,0.05); }
+.ring-2 { width: 140px; height: 140px; border-color: var(--green); border-style: dashed; border-width: 1.5px; animation: spin 6s linear infinite reverse; z-index: 3; box-shadow: 0 0 20px rgba(0,230,118,0.1); }
+.ring-3 { width: 160px; height: 160px; border-color: var(--gold); border-style: dotted; border-width: 2px; animation: spin 8s linear infinite; z-index: 2; opacity: 0.6; box-shadow: 0 0 25px rgba(255,215,64,0.08); }
+.ring-4 { width: 175px; height: 175px; border: none; background: conic-gradient(from 0deg, transparent, rgba(0,240,255,0.08), transparent, rgba(0,230,118,0.08), transparent); border-radius: 50%; animation: spin 3s linear infinite reverse; z-index: 1; }
+
+.ring-glow { width: 180px; height: 180px; border: none; background: radial-gradient(circle, rgba(0,240,255,0.06) 0%, transparent 70%); z-index: 0; animation: pulseGlow 2s ease-in-out infinite alternate; }
+
+/* Orbiting dots */
+.orbit-dot { position: absolute; width: 8px; height: 8px; border-radius: 50%; top: 50%; left: 50%; z-index: 6; }
+.orbit-dot-1 { width: 6px; height: 6px; background: var(--cyan); box-shadow: 0 0 10px rgba(0,240,255,0.8); animation: orbit1 3s linear infinite; }
+.orbit-dot-2 { width: 5px; height: 5px; background: var(--green); box-shadow: 0 0 8px rgba(0,230,118,0.8); animation: orbit2 4s linear infinite; }
+.orbit-dot-3 { width: 4px; height: 4px; background: var(--gold); box-shadow: 0 0 6px rgba(255,215,64,0.8); animation: orbit3 5s linear infinite; }
+.orbit-dot-4 { width: 7px; height: 7px; background: rgba(255,23,68,0.7); box-shadow: 0 0 12px rgba(255,23,68,0.6); animation: orbit4 3.5s linear infinite reverse; }
+
+/* Scanning line effect */
+.scan-line { position: absolute; width: 2px; height: 140px; background: linear-gradient(to bottom, transparent, var(--cyan), transparent); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 4; animation: scanSpin 2s ease-in-out infinite; opacity: 0.5; }
+
+@keyframes spin { 0%{transform:translate(-50%,-50%) rotate(0deg)} 100%{transform:translate(-50%,-50%) rotate(360deg)} }
+
+@keyframes pulseGlow {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    100% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+}
+
+@keyframes orbit1 {
+    0% { transform: translate(-50%, -50%) rotate(0deg) translateX(60px) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg) translateX(60px) rotate(-360deg); }
+}
+
+@keyframes orbit2 {
+    0% { transform: translate(-50%, -50%) rotate(0deg) translateX(75px) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg) translateX(75px) rotate(-360deg); }
+}
+
+@keyframes orbit3 {
+    0% { transform: translate(-50%, -50%) rotate(0deg) translateX(50px) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg) translateX(50px) rotate(-360deg); }
+}
+
+@keyframes orbit4 {
+    0% { transform: translate(-50%, -50%) rotate(0deg) translateX(85px) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg) translateX(85px) rotate(-360deg); }
+}
+
+@keyframes scanSpin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); opacity: 0.3; }
+    50% { opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) rotate(360deg); opacity: 0.3; }
+}
+
+.splash-title { font-family: var(--font); font-size: 28px; font-weight: 800; letter-spacing: 4px; color: var(--cyan); margin-bottom: 20px; text-shadow: 0 0 20px rgba(0,240,255,0.4); text-align: center; display: flex; flex-direction: column; align-items: center; }
+.splash-title-line { display: block; line-height: 1.3; white-space: nowrap; }
+
+.splash-bar-container { width: 220px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.splash-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--cyan)); border-radius: 4px; transition: width 0.3s ease; box-shadow: 0 0 10px rgba(0,240,255,0.5); }
+
+.splash-percent { font-family: var(--font); font-size: 28px; font-weight: 800; letter-spacing: 2px; background: linear-gradient(135deg, var(--cyan), var(--green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px; line-height: 1; transition: none; }
+
+.splash-status { font-family: var(--font); font-size: 10px; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; }
+
+/* ========== PUBLIC ACCESS / KEY LOGIN ========== */
+#view-access { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(1px); z-index: 100; display: flex; justify-content: center; align-items: center; padding: 20px; }
+#view-forcejoin { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(1px); z-index: 100; display: flex; justify-content: center; align-items: center; padding: 20px; }
+
+.access-card { background: var(--card); border-radius: 20px; padding: 40px 30px; max-width: 420px; width: 100%; text-align: center; position: relative; border: 2px solid var(--cyan); box-shadow: 0 0 30px rgba(0,240,255,0.15), inset 0 0 30px rgba(0,240,255,0.03); }
+
+.access-card.locked { border-color: var(--red); box-shadow: 0 0 30px rgba(255,23,68,0.15), inset 0 0 30px rgba(255,23,68,0.03); }
+
+.access-icon { font-size: 3rem; margin-bottom: 15px; }
+.access-icon.cyan { color: var(--cyan); }
+.access-icon.red { color: var(--red); }
+
+.access-title { font-family: var(--font); font-size: 20px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px; }
+.gradient-text { background: linear-gradient(135deg, var(--green), var(--gold)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.access-sub { color: var(--text-muted); font-size: 13px; margin-bottom: 25px; line-height: 1.5; }
+
+.access-desc-box { background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 25px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+
+.btn-guest { width: 100%; padding: 16px; border-radius: 14px; border: none; font-family: var(--font); font-size: 14px; font-weight: 700; letter-spacing: 2px; cursor: pointer; color: #000; background: linear-gradient(135deg, var(--cyan), var(--gold)); transition: 0.3s; }
+.btn-guest:active { transform: scale(0.97); }
+
+.btn-telegram { width: 100%; padding: 16px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; color: #fff; background: #0088cc; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 12px; transition: 0.3s; text-decoration: none; }
+.btn-telegram:active { transform: scale(0.97); }
+.btn-telegram.verified { background: #1a3a5c; color: #5a8ab5; }
+
+.btn-whatsapp { width: 100%; padding: 16px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; color: #fff; background: #25D366; display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 12px; transition: 0.3s; text-decoration: none; }
+.btn-whatsapp:active { transform: scale(0.97); }
+.btn-whatsapp.verified { background: #1a4a2e; color: #5ab87a; }
+
+.btn-verify { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--card-border); font-size: 14px; font-weight: 600; cursor: pointer; color: var(--text-muted); background: transparent; transition: 0.3s; margin-top: 5px; }
+.btn-verify:active { transform: scale(0.97); }
+
+.btn-enter-vault { width: 100%; padding: 16px; border-radius: 14px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; color: #000; background: var(--cyan); transition: 0.3s; margin-top: 8px; box-shadow: 0 0 20px rgba(0,240,255,0.3); }
+.btn-enter-vault:active { transform: scale(0.97); }
+
+.developed-by { font-family: var(--font); font-size: 8px; letter-spacing: 2px; color: var(--text-muted); margin-top: 25px; text-transform: uppercase; }
+
+/* ========== MAIN DASHBOARD ========== */
+#view-main { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 100; display: flex; flex-direction: column; }
+
+.dash-header { padding: 15px 20px 10px; display: flex; justify-content: space-between; align-items: flex-start; flex-shrink: 0; background: rgba(0,0,0,0.4); }
+.dash-brand { font-family: var(--font); font-size: 20px; font-weight: 800; letter-spacing: 1px; background: linear-gradient(135deg, var(--green), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.dash-user { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.dash-secure { font-family: var(--font); font-size: 10px; letter-spacing: 1px; color: var(--green); border: 1px solid rgba(0,230,118,0.3); padding: 6px 14px; border-radius: 8px; background: rgba(0,230,118,0.05); margin-top: 2px; }
+
+.dash-search { padding: 0 20px; margin-bottom: 10px; flex-shrink: 0; background: rgba(0,0,0,0.4); }
+.dash-search input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); color: var(--text); padding: 14px 16px 14px 44px; border-radius: 14px; font-size: 15px; font-family: var(--font-body); outline: none; }
+.dash-search input::placeholder { color: var(--text-muted); }
+.search-wrapper { position: relative; }
+.search-wrapper i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px; }
+
+.dash-content { flex: 1; overflow-y: auto; padding: 0 20px 20px; -webkit-overflow-scrolling: touch; background: transparent; }
+.dash-content::-webkit-scrollbar { display: none; }
+
+.section-title { font-family: var(--font); font-size: 11px; letter-spacing: 3px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--card-border); }
+
+.empty-state { display: flex; flex-direction: column; gap: 10px; padding: 30px 0; }
+.empty-state i { font-size: 2.5rem; color: var(--text-muted); opacity: 0.4; }
+.empty-state span { color: var(--text-muted); font-size: 14px; }
+
+/* APK Cards */
+.apk-grid { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.apk-grid::-webkit-scrollbar { display: none; }
+
+.apk-card { min-width: 130px; max-width: 130px; background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; transition: 0.2s; position: relative; flex-shrink: 0; }
+.apk-card:active { transform: scale(0.96); }
+.apk-badge { position: absolute; top: 8px; right: 8px; font-family: var(--font); font-size: 7px; letter-spacing: 1px; color: var(--gold); background: rgba(255,215,64,0.12); padding: 3px 6px; border-radius: 4px; font-weight: 700; }
+.apk-icon { width: 56px; height: 56px; border-radius: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); }
+.apk-icon img { width: 100%; height: 100%; object-fit: cover; }
+.apk-icon i { font-size: 1.5rem; color: var(--text-muted); }
+.apk-name { font-size: 12px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+
+/* Profile */
+.profile-section { display: flex; flex-direction: column; align-items: center; padding: 30px 0 20px; }
+.profile-avatar { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--cyan); display: flex; align-items: center; justify-content: center; margin-bottom: 15px; background: rgba(0,240,255,0.05); }
+.profile-avatar i { font-size: 2rem; color: var(--cyan); }
+.profile-name { font-family: var(--font); font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--green), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
+.profile-badge { font-family: var(--font); font-size: 9px; letter-spacing: 2px; color: var(--green); background: rgba(0,230,118,0.1); padding: 4px 12px; border-radius: 6px; font-weight: 700; }
+
+.hash-card { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 20px; width: 100%; margin-top: 25px; }
+.hash-title { font-family: var(--font); font-size: 11px; letter-spacing: 2px; color: var(--cyan); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.hash-title i { color: var(--cyan); font-size: 12px; }
+.hash-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--card-border); }
+.hash-row:last-child { border-bottom: none; }
+.hash-label { color: var(--text-muted); font-size: 13px; }
+.hash-value { font-family: var(--font); font-size: 12px; letter-spacing: 1px; color: var(--text); font-weight: 600; }
+
+.btn-terminate { width: 100%; padding: 16px; border-radius: 14px; border: 1px solid rgba(255,23,68,0.3); font-size: 14px; font-weight: 600; cursor: pointer; color: var(--red); background: rgba(255,23,68,0.06); display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; transition: 0.3s; }
+.btn-terminate:active { transform: scale(0.97); }
+
+/* Bottom Nav */
+.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 70px; background: rgba(10,10,12,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--card-border); display: flex; justify-content: space-around; padding-bottom: 8px; z-index: 200; }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--text-muted); font-size: 10px; font-weight: 500; cursor: pointer; transition: 0.3s; padding-top: 8px; }
+.nav-item i { font-size: 20px; }
+.nav-item.active { color: var(--cyan); }
+
+/* Toast */
+.toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 400px; }
+.toast { background: rgba(20,20,24,0.95); backdrop-filter: blur(20px); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 13px; animation: slideDown 0.3s forwards, fadeOut 0.3s 2.7s forwards; }
+.toast i { font-size: 16px; }
+.toast.success i { color: var(--green); }
+.toast.error i { color: var(--red); }
+@keyframes slideDown { from{transform:translateY(-15px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes fadeOut { to{opacity:0;transform:translateY(-15px)} }
+
+@media (max-width: 480px) {
+    .splash-title { font-size: 18px; letter-spacing: 2px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- SPLASH SCREEN -->
+    <div id="splash">
+        <div class="splash-logo">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="ring ring-4"></div>
+            <div class="ring ring-glow"></div>
+            <div class="scan-line"></div>
+            <div class="orbit-dot orbit-dot-1"></div>
+            <div class="orbit-dot orbit-dot-2"></div>
+            <div class="orbit-dot orbit-dot-3"></div>
+            <div class="orbit-dot orbit-dot-4"></div>
+            <div class="splash-avatar" id="splash-avatar">
+                <img id="custom-logo" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+            </div>
+        </div>
+        <div class="splash-title"><span class="splash-title-line">TRADING</span><span class="splash-title-line">PRO HUB</span></div>
+        <div class="splash-bar-container">
+            <div class="splash-bar" id="splash-bar"></div>
+        </div>
+        <div class="splash-percent" id="splash-percent">0%</div>
+        <div class="splash-status" id="splash-status">AUTHENTICATING DATABASE...</div>
+    </div>
+
+    <!-- PUBLIC ACCESS / KEY LOGIN -->
+    <div id="view-access" class="hidden"></div>
+
+    <!-- FORCE JOIN -->
+    <div id="view-forcejoin" class="hidden"></div>
+
+    <!-- MAIN DASHBOARD -->
+    <div id="view-main" class="hidden">
+        <div class="dash-header">
+            <div>
+                <div class="dash-brand">Trading Pro Hub</div>
+                <div class="dash-user" id="dash-user">Public Guest</div>
+            </div>
+            <div class="dash-secure"><i class="fa-solid fa-shield-halved"></i> Live</div>
+        </div>
+        <div class="dash-search">
+            <div class="search-wrapper">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="search-input" placeholder="Search..." oninput="App.filterItems(this.value)">
+            </div>
+        </div>
+        <div class="dash-content" id="dash-content"></div>
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="App.switchTab('tools',this)"><i class="fa-solid fa-chart-line"></i>Tools</div>
+            <div class="nav-item" onclick="App.switchTab('apks',this)"><i class="fa-solid fa-bolt"></i>Signals</div>
+            <div class="nav-item" onclick="App.switchTab('courses',this)"><i class="fa-solid fa-graduation-cap"></i>Academy</div>
+            <div class="nav-item" onclick="App.switchTab('profile',this)"><i class="fa-solid fa-user"></i>Profile</div>
+            <div class="nav-item" onclick="App.switchTab('premium',this)"><i class="fa-solid fa-crown"></i>VIP</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const h = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+const App = {
+    state: { admin:{}, keys:[], tools:[], links:[], courses:[], premiumConfig:{}, premiumContent:[], premiumKeys:[] },
+    currentTab: 'tools',
+    sessionKey: 'rv_session',
+    fjSessionKey: 'rv_fj_verified',
+    premiumSessionKey: 'rv_premium_access',
+
+    persist() {
+        return SB.save(this.state).catch(() => {});
+    },
+
+    init() {
+        document.getElementById('dash-content').addEventListener('click', (e) => {
+            const link = e.target.closest('[data-link-url]');
+            if (link) { window.open(link.dataset.linkUrl, '_blank'); return; }
+            const course = e.target.closest('[data-course-url]');
+            if (course) { window.open(course.dataset.courseUrl, '_blank'); return; }
+            const tool = e.target.closest('[data-tool-id]');
+            if (tool) { this.openTool(tool.dataset.toolId); return; }
+        });
+        const cachedLogo = localStorage.getItem('rv_logo_cache');
+        if (cachedLogo) {
+            const customLogo = document.getElementById('custom-logo');
+            customLogo.src = cachedLogo;
+            customLogo.style.display = 'block';
+        }
+        this.runSplash();
+    },
+
+    toast(msg, type='success') {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = 'toast ' + type;
+        const icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>';
+        t.innerHTML = icon + '<span>' + msg + '</span>';
+        c.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    },
+
+    runSplash() {
+        const bar = document.getElementById('splash-bar');
+        const status = document.getElementById('splash-status');
+        const percent = document.getElementById('splash-percent');
+        const msgs = ['CONNECTING TO MARKETS...', 'LOADING TRADING MODULES...', 'VERIFYING ACCESS...', 'INITIALIZING HUB...'];
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 25 + 10;
+            if (progress > 100) progress = 100;
+            const displayProgress = Math.round(progress);
+            bar.style.width = displayProgress + '%';
+            percent.textContent = displayProgress + '%';
+            status.textContent = msgs[Math.min(Math.floor(progress / 25), msgs.length - 1)];
+            if (progress >= 100) {
+                clearInterval(interval);
+                setTimeout(() => this.connectFirebase(), 200);
+            }
+        }, 150);
+    },
+
+    async connectFirebase() {
+        try {
+            let data = await SB.load();
+            if (!data || !data.admin) {
+                document.getElementById('splash-status').textContent = 'CONFIGURING DATABASE...';
+                const defaults = {
+                    admin: { user:'admin', pass:'admin', waLink:'', keySystemActive:true, forceJoin:{ active:true, telegram:'', whatsapp:'', note:'Join our official channel to unlock the tools and get latest updates!' } },
+                    keys: [{ id:'k_master', key:'darkmasterub', name:'Master Access', limit:0, uses:0, expiry:'', active:true, tools:['all'] }],
+                    tools: [], links: [], courses: [], premiumConfig:{}, premiumContent:[], premiumKeys:[]
+                };
+                await SB.save(defaults);
+                data = await SB.load();
+            }
+            this.onDataReady(data || {});
+        } catch (err) {
+            document.getElementById('splash-status').textContent = 'CONNECTION FAILED. RETRYING...';
+            setTimeout(() => this.connectFirebase(), 2000);
+        }
+    },
+
+    onDataReady(data) {
+        this.state.admin = data.admin || {};
+        this.state.keys = data.keys || [];
+        this.state.tools = data.tools || [];
+        this.state.links = data.links || [];
+        this.state.courses = data.courses || [];
+        this.state.premiumConfig = data.premiumConfig || {};
+        this.state.premiumContent = data.premiumContent || [];
+        this.state.premiumKeys = data.premiumKeys || [];
+        if (!this.state.admin.forceJoin) this.state.admin.forceJoin = { active:true, telegram:'', whatsapp:'', note:'' };
+
+        // Force-enable forceJoin if no links configured yet (admin hasn't explicitly configured it)
+        const fj = this.state.admin.forceJoin;
+        const hasLinks = (fj.telegram && fj.telegram.trim()) || (fj.whatsapp && fj.whatsapp.trim());
+        if (fj.active === false && !hasLinks) {
+            fj.active = true;
+            this.persist();
+        }
+
+        // Set custom logo
+        const logo = this.state.admin.logo;
+        const customLogo = document.getElementById('custom-logo');
+        if(logo){
+            customLogo.src=logo;
+            customLogo.style.display='block';
+            try{localStorage.setItem('rv_logo_cache',logo);}catch(e){}
+        } else {
+            customLogo.style.display='none';
+            try{localStorage.removeItem('rv_logo_cache');}catch(e){}
+        }
+
+        setTimeout(() => {
+            document.getElementById('splash').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('splash').style.display = 'none';
+                this.handleRouting();
+            }, 400);
+        }, 300);
+    },
+
+    handleRouting() {
+        if (sessionStorage.getItem(this.sessionKey)) {
+            if (this.state.admin.forceJoin && this.state.admin.forceJoin.active && !sessionStorage.getItem(this.fjSessionKey)) {
+                this.showForceJoin();
+                return;
+            }
+            this.showMain();
+            return;
+        }
+        this.showAccessScreen();
+    },
+
+    showAccessScreen() {
+        const el = document.getElementById('view-access');
+        el.classList.remove('hidden');
+        let waHtml = '';
+        if (this.state.admin.waLink) {
+            const waUrl = this.state.admin.waLink;
+            if (waUrl.startsWith('http://') || waUrl.startsWith('https://') || waUrl.startsWith('whatsapp://')) {
+                waHtml = '<a href="'+h(waUrl)+'" target="_blank" style="display:block;margin-top:15px;color:var(--green);font-size:13px;text-decoration:none;"><i class="fa-brands fa-whatsapp"></i> Contact for Access</a>';
+            }
+        }
+        const keyActive = this.state.admin.keySystemActive !== false;
+        el.innerHTML = `
+            <div class="access-card" style="border-color:var(--cyan);">
+                <div class="access-icon cyan"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="access-title gradient-text">TRADING ACCESS</div>
+                <div class="access-sub">${keyActive ? 'Enter passkey or continue as guest.' : 'Key system disabled. Continue as guest.'}</div>
+                ${keyActive ? `
+                <form onsubmit="App.keyLogin(event)" style="width:100%;">
+                    <input type="text" id="key-input" placeholder="Enter Passkey" autocapitalize="off" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--card-border);color:#fff;padding:14px 16px;border-radius:12px;font-size:15px;margin-bottom:14px;font-family:var(--font-body);outline:none;text-align:center;">
+                    <button type="submit" class="btn-guest" style="background:linear-gradient(135deg, var(--cyan), var(--green));">UNLOCK WITH KEY</button>
+                </form>
+                <div style="margin:18px 0 8px;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px dashed var(--card-border);text-align:center;">
+                    <span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">OR</span>
+                </div>
+                ` : ''}
+                <button class="btn-guest" onclick="App.continueAsGuest()" style="background:linear-gradient(135deg, var(--green), var(--gold));"><i class="fa-solid fa-user"></i> CONTINUE AS GUEST</button>
+                ${waHtml}
+                <div class="developed-by">DEVELOPED BY TRADING PRO HUB</div>
+            </div>
+        `;
+    },
+
+    keyLogin(e) {
+        e.preventDefault();
+        const inputKey = document.getElementById('key-input').value.trim();
+        const keyData = this.state.keys.find(k => k.key === inputKey && k.active);
+        if (!keyData) { this.toast('Invalid or inactive passkey', 'error'); return; }
+        if (keyData.expiry && new Date(keyData.expiry) < new Date()) { this.toast('This passkey has expired', 'error'); return; }
+
+        // Usage counter
+        const keyIndex = this.state.keys.findIndex(k => k.id === keyData.id);
+        const currentUses = keyData.uses || 0;
+        const newCount = currentUses + 1;
+        if (keyData.limit > 0 && newCount > keyData.limit) {
+            this.toast('Passkey usage limit reached', 'error');
+            return;
+        }
+        this.state.keys[keyIndex].uses = newCount;
+        this.persist();
+        keyData.uses = newCount;
+        sessionStorage.setItem(this.sessionKey, JSON.stringify({ key: inputKey, name: keyData.name, type: 'key', _t: Date.now() }));
+        this.showMain();
+    },
+
+    continueAsGuest() {
+        if (this.state.admin.forceJoin && this.state.admin.forceJoin.active && !sessionStorage.getItem(this.fjSessionKey)) {
+            this.showForceJoin();
+        } else {
+            sessionStorage.setItem(this.sessionKey, JSON.stringify({ key: 'GUEST_MODE', name: 'Public Guest', type: 'guest', _t: Date.now() }));
+            this.showMain();
+        }
+    },
+
+    showForceJoin() {
+        document.getElementById('view-access').classList.add('hidden');
+        const el = document.getElementById('view-forcejoin');
+        el.classList.remove('hidden');
+        const fj = this.state.admin.forceJoin;
+        const note = h(fj.note || 'Join our official channel to unlock the tools and get latest updates!');
+        const hasTg = fj.telegram && fj.telegram.trim().length > 0;
+        const hasWa = fj.whatsapp && fj.whatsapp.trim().length > 0;
+
+        let tgBtn = '', waBtn = '';
+        if (hasTg) {
+            tgBtn = '<a href="'+h(fj.telegram)+'" target="_blank" class="btn-telegram" id="btn-tg" onclick="App.markTgClicked()"><i class="fa-brands fa-telegram"></i> Join Telegram</a>';
+        }
+        if (hasWa) {
+            waBtn = '<a href="'+h(fj.whatsapp)+'" target="_blank" class="btn-whatsapp" id="btn-wa" onclick="App.markWaClicked()"><i class="fa-brands fa-whatsapp"></i> Join WhatsApp</a>';
+        }
+
+        let verifyBtn = '';
+        if (hasTg || hasWa) {
+            verifyBtn = '<button class="btn-verify" id="btn-verify-status" onclick="App.verifyForceJoin()">Verify Join Status</button>';
+        } else {
+            verifyBtn = '<button class="btn-verify" disabled style="opacity:0.5;cursor:not-allowed;">No Links Configured - Contact Admin</button>';
+        }
+
+        el.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:100%;padding:20px;">
+                <div class="access-card locked" style="max-width:420px;width:100%;">
+                    <div class="access-icon red"><i class="fa-solid fa-lock"></i></div>
+                    <div class="access-title" style="color:var(--text);">Verification Required</div>
+                    <div class="access-desc-box">${note}</div>
+                    ${tgBtn}
+                    ${waBtn}
+                    ${verifyBtn}
+                </div>
+            </div>
+        `;
+    },
+
+    tgClicked: false,
+    waClicked: false,
+
+    markTgClicked() { this.tgClicked = true; },
+    markWaClicked() { this.waClicked = true; },
+
+    verifyForceJoin() {
+        const fj = this.state.admin.forceJoin;
+        const hasTg = fj.telegram && fj.telegram.trim().length > 0;
+        const hasWa = fj.whatsapp && fj.whatsapp.trim().length > 0;
+
+        // If no links configured - block access, show contact admin
+        if (!hasTg && !hasWa) {
+            this.toast('Force Join not configured. Contact admin.', 'error');
+            return;
+        }
+        // Need to click ALL configured links
+        if ((hasTg && !this.tgClicked) || (hasWa && !this.waClicked)) {
+            this.toast('Please click all channel links first', 'error');
+            return;
+        }
+        this.showForceJoinVerified();
+    },
+
+    showForceJoinVerified() {
+        const el = document.getElementById('view-forcejoin');
+        const fj = this.state.admin.forceJoin;
+        const note = h(fj.note || 'Join our official channel to unlock the tools and get latest updates!');
+        const hasTg = fj.telegram && fj.telegram.trim().length > 0;
+        const hasWa = fj.whatsapp && fj.whatsapp.trim().length > 0;
+
+        let tgBtn = '', waBtn = '';
+        if (hasTg) {
+            tgBtn = '<div class="btn-telegram verified"><i class="fa-solid fa-circle-check"></i> Verified</div>';
+        }
+        if (hasWa) {
+            waBtn = '<div class="btn-whatsapp verified"><i class="fa-solid fa-circle-check"></i> Verified</div>';
+        }
+
+        el.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:100%;padding:20px;">
+                <div class="access-card locked" style="max-width:420px;width:100%;">
+                    <div class="access-icon red"><i class="fa-solid fa-lock"></i></div>
+                    <div class="access-title" style="color:var(--text);">Verification Required</div>
+                    <div class="access-desc-box">${note}</div>
+                    ${tgBtn}
+                    ${waBtn}
+                    <button class="btn-enter-vault" onclick="App.enterVault()">Enter Trading Hub</button>
+                </div>
+            </div>
+        `;
+    },
+
+    enterVault() {
+        sessionStorage.setItem(this.fjSessionKey, 'true');
+        sessionStorage.setItem(this.sessionKey, JSON.stringify({ key: 'GUEST_MODE', name: 'Public Guest', type: 'guest', _t: Date.now() }));
+        this.showMain();
+    },
+
+    showMain() {
+        let session;
+        try { session = JSON.parse(sessionStorage.getItem(this.sessionKey) || '{}'); } catch(e) { session = {}; }
+        // Validate session format (prevents console injection)
+        if (!session.type || !session._t || Date.now() - session._t > 86400000) {
+            sessionStorage.removeItem(this.sessionKey);
+            sessionStorage.removeItem(this.fjSessionKey);
+            this.handleRouting();
+            return;
+        }
+        // Defense: if guest and force join active but not verified, redirect to force join
+        if (session.type !== 'key' && this.state.admin.forceJoin && this.state.admin.forceJoin.active && !sessionStorage.getItem(this.fjSessionKey)) {
+            this.showForceJoin();
+            return;
+        }
+        document.getElementById('view-access').classList.add('hidden');
+        document.getElementById('view-forcejoin').classList.add('hidden');
+        const main = document.getElementById('view-main');
+        main.classList.remove('hidden');
+
+        document.getElementById('dash-user').textContent = session.name || 'Public Guest';
+
+        this.switchTab('tools');
+    },
+
+    switchTab(tab, el) {
+        this.currentTab = tab;
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        if (el) el.classList.add('active');
+        document.getElementById('search-input').value = '';
+        this.renderContent();
+    },
+
+    filterItems(query) {
+        this.renderContent(query.toLowerCase());
+    },
+
+    renderContent(query='') {
+        const content = document.getElementById('dash-content');
+        const session = JSON.parse(sessionStorage.getItem(this.sessionKey) || '{}');
+
+        if (this.currentTab === 'tools') {
+            let tools = this.state.tools.filter(t => t.active);
+            if (query) tools = tools.filter(t => t.name.toLowerCase().includes(query));
+
+            if (!tools.length) {
+                content.innerHTML = '<div class="section-title">TRADING TOOLS</div><div class="empty-state"><i class="fa-solid fa-chart-line"></i><span>No trading tools assigned.</span></div>';
+            } else {
+                content.innerHTML = '<div class="section-title">TRADING TOOLS</div>' + tools.map(t => {
+                    const icon = t.iconType === 'img' && t.iconData ? '<img src="'+h(t.iconData)+'" style="width:100%;height:100%;object-fit:cover;">' : '<i class="'+h(t.icon||'fa-solid fa-cube')+'" style="color:var(--cyan);"></i>';
+                    return '<div class="list-item-card" data-tool-id="'+h(t.id)+'" style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;"><div style="width:44px;height:44px;border-radius:12px;background:rgba(0,240,255,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+icon+'</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">'+h(t.name)+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">HTML Tool</div></div><i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:12px;"></i></div>';
+                }).join('');
+            }
+        } else if (this.currentTab === 'apks') {
+            let links = this.state.links.filter(l => l.active);
+            if (query) links = links.filter(l => l.name.toLowerCase().includes(query));
+
+            if (!links.length) {
+                content.innerHTML = '<div class="section-title">APPS & SIGNALS</div><div class="empty-state"><i class="fa-solid fa-bolt"></i><span>No apps or signals assigned.</span></div>';
+            } else {
+                content.innerHTML = '<div class="section-title">APPS & SIGNALS</div><div class="apk-grid">' + links.map(l => {
+                    const icon = l.iconType === 'img' && l.iconData ? '<img src="'+h(l.iconData)+'">' : '<i class="'+h(l.icon||'fa-brands fa-android')+'" style="color:var(--gold);"></i>';
+                    return '<div class="apk-card" data-link-url="'+h(l.url)+'"><div class="apk-badge">APK/APP</div><div class="apk-icon">'+icon+'</div><div class="apk-name">'+h(l.name)+'</div></div>';
+                }).join('') + '</div>';
+            }
+        } else if (this.currentTab === 'courses') {
+            let courses = this.state.courses.filter(c => c.active);
+            if (query) courses = courses.filter(c => c.name.toLowerCase().includes(query));
+
+            if (!courses.length) {
+                content.innerHTML = '<div class="section-title">TRADING ACADEMY</div><div class="empty-state"><i class="fa-solid fa-graduation-cap"></i><span>No courses available yet.</span></div>';
+            } else {
+                content.innerHTML = '<div class="section-title">TRADING ACADEMY</div>' + courses.map(c => {
+                    const poster = c.posterData ? '<img src="'+h(c.posterData)+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">' : '<i class="fa-solid fa-graduation-cap" style="color:var(--cyan);font-size:1.2rem;"></i>';
+                    const desc = c.description ? (c.description.length>50?c.description.substring(0,50)+'...':c.description) : '';
+                    return '<div class="list-item-card" data-course-url="'+h(c.url)+'" style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;"><div style="width:56px;height:40px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+poster+'</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">'+h(c.name)+'</div>'+(desc?'<div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+h(desc)+'</div>':'')+'<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">'+h((c.format||'Course').toUpperCase())+'</div></div><i class="fa-solid fa-chevron-right" style="color:var(--text-muted);font-size:12px;"></i></div>';
+                }).join('');
+            }
+        } else if (this.currentTab === 'profile') {
+            const session = JSON.parse(sessionStorage.getItem(this.sessionKey) || '{}');
+            const keyName = h(session.key || 'GUEST_MODE');
+            const userName = h(session.name || 'Public Guest');
+
+            content.innerHTML = `
+                <div class="profile-section">
+                    <div class="profile-avatar"><i class="fa-solid fa-user"></i></div>
+                    <div class="profile-name">${userName}</div>
+                    <div class="profile-badge">ACTIVE SESSION</div>
+                </div>
+                <div class="hash-card">
+                    <div class="hash-title"><i class="fa-solid fa-chart-line"></i> ACCOUNT HASH</div>
+                    <div class="hash-row"><span class="hash-label">Key Signature</span><span class="hash-value">${keyName}</span></div>
+                    <div class="hash-row"><span class="hash-label">Usage Counter</span><span class="hash-value">&infin;</span></div>
+                    <div class="hash-row"><span class="hash-label">Expiration Date</span><span class="hash-value">Never</span></div>
+                </div>
+                <button class="btn-terminate" onclick="App.terminateSession()"><i class="fa-solid fa-power-off"></i> Terminate Session Securely</button>
+            `;
+        } else if (this.currentTab === 'premium') {
+            this.renderPremiumContent();
+        }
+    },
+
+    renderPremiumContent() {
+        const content = document.getElementById('dash-content');
+        const premiumData = JSON.parse(sessionStorage.getItem(this.premiumSessionKey) || 'null');
+        const isGranted = premiumData && premiumData.access === true;
+
+        if (isGranted) {
+            // Show premium content
+            const items = this.state.premiumContent.filter(c => c.active);
+            if (!items.length) {
+                content.innerHTML = '<div class="section-title">VIP SIGNALS</div><div class="empty-state"><i class="fa-solid fa-crown" style="color:var(--gold);"></i><span>No VIP content available yet.</span></div>';
+            } else {
+                content.innerHTML = '<div class="section-title">VIP SIGNALS</div>' + items.map(c => {
+                    const typeMap = { course:'fa-solid fa-graduation-cap', apk:'fa-brands fa-android', video:'fa-solid fa-video', image:'fa-solid fa-image', zip:'fa-solid fa-file-zipper' };
+                    const iconHtml = c.iconType === 'img' && c.iconData ? '<img src="'+h(c.iconData)+'" style="width:100%;height:100%;object-fit:cover;">' : '<i class="'+h(c.icon||typeMap[c.type]||'fa-solid fa-cube')+'" style="color:var(--gold);"></i>';
+                    const typeLabels = { course:'Course', apk:'APK', video:'Video', image:'Image', zip:'ZIP Archive' };
+                    return '<div class="list-item-card" onclick="window.open(\''+h(c.url)+'\',\'_blank\')" style="background:var(--card);border:1px solid var(--gold);border-radius:14px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;box-shadow:0 0 15px rgba(255,215,64,0.08);"><div style="width:44px;height:44px;border-radius:12px;background:rgba(255,215,64,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+iconHtml+'</div><div style="flex:1;"><div style="font-weight:600;font-size:14px;color:var(--gold);">'+h(c.name)+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">'+h(typeLabels[c.type]||c.type||'Content')+'</div></div><i class="fa-solid fa-chevron-right" style="color:var(--gold);font-size:12px;"></i></div>';
+                }).join('');
+            }
+        } else {
+            // Show auth screen: payment OR key
+            const cfg = this.state.premiumConfig;
+            const bankName = h(cfg.bankName||'EasyPaisa');
+            const account = h(cfg.accountNumber||'03238693440');
+            const receiver = h(cfg.receiverName||'Receiver');
+            const amount = cfg.amount||500;
+            const adminWA = h(cfg.adminWhatsApp || '923238693440');
+
+            content.innerHTML = `
+                <div class="section-title">PREMIUM ACCESS REQUIRED</div>
+                <div style="background:var(--card);border:1px solid var(--gold);border-radius:20px;padding:24px 20px;text-align:center;margin-bottom:20px;box-shadow:0 0 30px rgba(255,215,64,0.1);">
+                    <i class="fa-solid fa-crown" style="font-size:3rem;color:var(--gold);margin-bottom:12px;"></i>
+                    <div style="font-family:var(--font);font-size:18px;font-weight:700;color:var(--gold);margin-bottom:6px;">Unlock Premium</div>
+                    <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Get access to exclusive premium content</div>
+                </div>
+
+                <!-- Payment Option -->
+                <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:20px;margin-bottom:16px;">
+                    <div style="font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-building-columns" style="color:var(--green);"></i> Pay &amp; Get Premium Key</div>
+                    <div style="background:rgba(255,215,64,0.08);border:1px solid rgba(255,215,64,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;">
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--text-muted);">Bank:</span><span style="font-weight:600;">${bankName}</span></div>
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--text-muted);">Account:</span><span style="font-weight:600;font-family:monospace;">${account}</span></div>
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--text-muted);">Receiver:</span><span style="font-weight:600;">${receiver}</span></div>
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid rgba(255,215,64,0.15);margin-top:6px;padding-top:8px;"><span style="color:var(--text-muted);">Amount:</span><span style="font-weight:700;color:var(--gold);font-size:16px;">Rs ${amount}</span></div>
+                    </div>
+                    <div style="background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.2);border-radius:10px;padding:14px;text-align:center;">
+                        <div style="margin-bottom:8px;color:var(--text-muted);font-size:13px;">After payment, send screenshot on this number:</div>
+                        <div style="font-size:18px;font-weight:700;color:#25D366;margin-bottom:10px;">${adminWA}</div>
+                        <a href="https://wa.me/${adminWA}" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;font-size:14px;"><i class="fa-brands fa-whatsapp" style="font-size:18px;"></i> Send Screenshot on WhatsApp</a>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div style="display:flex;align-items:center;gap:14px;margin:12px 0 18px;">
+                    <div style="flex:1;height:1px;background:var(--card-border);"></div>
+                    <span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--font);">OR</span>
+                    <div style="flex:1;height:1px;background:var(--card-border);"></div>
+                </div>
+
+                <!-- Premium Key Option -->
+                <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:20px;margin-bottom:16px;">
+                    <div style="font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><i class="fa-solid fa-key" style="color:var(--cyan);"></i> Already Have a Premium Key?</div>
+                    <form onsubmit="App.submitPremiumKey(event)" style="width:100%;">
+                        <input type="text" id="premium-key-input" placeholder="Enter Premium Key" required style="width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--card-border);color:#fff;padding:14px 16px;border-radius:12px;font-size:14px;margin-bottom:12px;font-family:var(--font-body);outline:none;text-align:center;">
+                        <button type="submit" class="btn-guest" style="background:linear-gradient(135deg, var(--cyan), var(--green));"><i class="fa-solid fa-unlock-keyhole"></i> Unlock Premium</button>
+                    </form>
+                </div>
+                <div style="height:30px;"></div>
+            `;
+        }
+    },
+
+    submitPremiumKey(e) {
+        e.preventDefault();
+        const keyStr = document.getElementById('premium-key-input').value.trim();
+        if (!keyStr) { this.toast('Enter a premium key','error'); return; }
+        const keyData = this.state.premiumKeys.find(k => k.key === keyStr && k.active);
+        if (!keyData) { this.toast('Invalid or inactive premium key','error'); return; }
+        if (keyData.expiry && new Date(keyData.expiry) < new Date()) { this.toast('This premium key has expired','error'); return; }
+        const keyIndex = this.state.premiumKeys.findIndex(k => k.id === keyData.id);
+        const newCount = (keyData.uses || 0) + 1;
+        if (keyData.limit > 0 && newCount > keyData.limit) {
+            this.toast('Premium key usage limit reached','error');
+            return;
+        }
+        this.state.premiumKeys[keyIndex].uses = newCount;
+        this.persist();
+        keyData.uses = newCount;
+        sessionStorage.setItem(this.premiumSessionKey, JSON.stringify({ access: true, method: 'key', key: keyStr }));
+        this.toast('Premium unlocked with key!');
+        this.renderPremiumContent();
+    },
+
+    openTool(id) {
+        const tool = this.state.tools.find(t => t.id === id);
+        if (!tool) return;
+        const viewer = window.open('', '_blank');
+        viewer.document.write(tool.html || '<h1>No content</h1>');
+        viewer.document.close();
+    },
+
+    terminateSession() {
+        sessionStorage.removeItem(this.sessionKey);
+        sessionStorage.removeItem(this.fjSessionKey);
+        sessionStorage.removeItem(this.premiumSessionKey);
+        this.tgClicked = false;
+        this.waClicked = false;
+        document.getElementById('view-main').classList.add('hidden');
+        document.getElementById('view-access').classList.add('hidden');
+        document.getElementById('view-forcejoin').classList.add('hidden');
+        this.handleRouting();
+        this.toast('Session terminated');
+    }
+};
+
+App.init();
+</script>
+</body>
+</html>
