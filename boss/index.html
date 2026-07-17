@@ -248,9 +248,13 @@ input:checked + .slider:before { transform: translateX(21px); }
 
         <div id="tab-keys" class="tab-content hidden">
             <div class="header"><h1 class="text-gradient">Access Control</h1><p>Manage Passkeys & Permissions</p></div>
-            <div style="background:rgba(10,132,255,0.08);padding:14px 16px;border-radius:12px;border:1px solid rgba(10,132,255,0.2);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="background:rgba(10,132,255,0.08);padding:14px 16px;border-radius:12px;border:1px solid rgba(10,132,255,0.2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
                 <div style="padding-right:12px;"><strong style="color:#fff;font-size:14px;">Key System Protection</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4;">Turn off to bypass login screen and show a simple "Continue" button for users.</div></div>
                 <label class="toggle-switch"><input type="checkbox" id="toggle-key-system" onchange="Admin.toggleKeySystem(this.checked)"><span class="slider"></span></label>
+            </div>
+            <div style="background:rgba(255,159,10,0.08);padding:14px 16px;border-radius:12px;border:1px solid rgba(255,159,10,0.2);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="padding-right:12px;"><strong style="color:#fff;font-size:14px;">Force Join Requirement</strong><div style="font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.4;">Turn off to skip the Telegram/WhatsApp join gate and let users straight in.</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="toggle-force-join" onchange="Admin.toggleForceJoin(this.checked)"><span class="slider"></span></label>
             </div>
             <div class="list-group" id="list-keys"></div>
         </div>
@@ -275,7 +279,7 @@ input:checked + .slider:before { transform: translateX(21px); }
                     <h3 class="text-premium" style="font-size:14px;margin-bottom:12px;font-weight:700;">Force Join Security</h3>
                     <div style="background:rgba(255,159,10,0.06);padding:14px;border-radius:10px;border:1px solid rgba(255,159,10,0.18);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;">
                         <strong style="color:#fff;font-size:13px;">Enable Force Join Requirement</strong>
-                        <label class="toggle-switch"><input type="checkbox" id="set-fj-active"><span class="slider"></span></label>
+                        <label class="toggle-switch"><input type="checkbox" id="set-fj-active" onchange="Admin.toggleForceJoin(this.checked)"><span class="slider"></span></label>
                     </div>
                     <label class="form-label"><i class="fa-brands fa-telegram" style="color:#0088cc;"></i> Telegram Channel Link</label><input type="url" id="set-fj-tg" placeholder="https://t.me/...">
                     <label class="form-label"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> WhatsApp Channel Link</label><input type="url" id="set-fj-wa" placeholder="https://whatsapp.com/channel/...">
@@ -663,6 +667,15 @@ const Admin = {
             this.saveLog('Security Update', 'Key Login System: '+(isActive?'ENABLED':'DISABLED'));
             this.toast('Key System '+(isActive?'Enabled':'Disabled'));
         }).catch(() => this.toast('Failed to update key system','error'));
+    },
+
+    toggleForceJoin(isActive) {
+        if(!this.state.admin.forceJoin) this.state.admin.forceJoin = { active:false, telegram:'', whatsapp:'', note:'' };
+        this.state.admin.forceJoin.active = isActive;
+        this.persist().then(() => {
+            this.saveLog('Security Update', 'Force Join: '+(isActive?'ENABLED':'DISABLED'));
+            this.toast('Force Join '+(isActive?'Enabled':'Disabled'));
+        }).catch(() => this.toast('Failed to update force join','error'));
     },
 
     setupListeners() {
@@ -1092,6 +1105,9 @@ const Admin = {
             }
         } else if (warnEl) { warnEl.remove(); }
         document.getElementById('toggle-key-system').checked = this.state.admin.keySystemActive!==false;
+        const fj2 = this.state.admin.forceJoin || { active:false };
+        const fjToggle = document.getElementById('toggle-force-join');
+        if(fjToggle) fjToggle.checked = fj2.active;
         document.getElementById('stat-keys').textContent = this.state.keys.length;
         document.getElementById('stat-tools').textContent = this.state.tools.length;
         document.getElementById('stat-links').textContent = this.state.links.length;
