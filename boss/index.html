@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  =ƒöÉ FIREBASE SECURITY RULES (copy to Firebase Console > Realtime Database > Rules):
+  =ï¿½ï¿½ï¿½ FIREBASE SECURITY RULES (copy to Firebase Console > Realtime Database > Rules):
   
   {
     "rules": {
@@ -851,7 +851,10 @@ const Admin = {
             this.persist().then(() => {
                 this.saveLog('Premium Key Saved', 'Alias: '+data.name);
                 this.hideSheets(); this.toast('Premium key saved');
-            });        document.getElementById('form-pdfbook').addEventListener('submit', (e) => {
+            });
+        });
+
+        document.getElementById('form-pdfbook').addEventListener('submit', (e) => {
             e.preventDefault();
             const id = document.getElementById('pdfbook-id').value || 'pb_'+Math.random().toString(36).substr(2,9);
             const name = document.getElementById('pdfbook-name').value;
