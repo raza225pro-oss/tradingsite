@@ -28,8 +28,43 @@
 <title>Trading Pro Hub - Admin Command Center</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"></noscript>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script>
+/* ===== SUPABASE DATA LAYER (replaces Firebase) ===== */
+const SB = {
+    url: 'https://dowwtticpzosfhjkwuvm.supabase.co',
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvd3d0dGljcHpvc2Zoamt3dXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNDU0ODUsImV4cCI6MjA5OTgyMTQ4NX0.jz9_gMbueWaXzFtHve9eDStqM-eeFZn0WpqepNSAIRY',
+    headers(method) {
+        const h = {
+            'apikey': SB.key,
+            'Authorization': 'Bearer ' + SB.key,
+            'Content-Type': 'application/json'
+        };
+        if (method === 'POST' || method === 'PATCH') h['Prefer'] = 'return=representation';
+        return h;
+    },
+    async load() {
+        const r = await fetch(SB.url + '/rest/v1/app_data?id=eq.main&select=data', { headers: SB.headers('GET') });
+        if (!r.ok) throw new Error('load failed');
+        const j = await r.json();
+        return (j && j[0] && j[0].data) ? j[0].data : null;
+    },
+    async save(data) {
+        const r = await fetch(SB.url + '/rest/v1/app_data', {
+            method: 'POST',
+            headers: SB.headers('POST'),
+            body: JSON.stringify({ id: 'main', data })
+        });
+        if (r.status === 201 || r.ok) return true;
+        const r2 = await fetch(SB.url + '/rest/v1/app_data?id=eq.main', {
+            method: 'PATCH',
+            headers: SB.headers('PATCH'),
+            body: JSON.stringify({ data })
+        });
+        if (!r2.ok) throw new Error('save failed');
+        return true;
+    }
+};
+</script>
 <style>
 :root {
     --bg: #050b07;
@@ -482,28 +517,20 @@ input:checked + .slider:before { transform: translateX(21px); }
 </div>
 
 <script>
-const firebaseConfig = {
-    apiKey: "AIzaSyA5qIC-JKLedlaDUr9GUXLymh6dKSfX3UQ",
-    authDomain: "tradig-9ae6b.firebaseapp.com",
-    projectId: "tradig-9ae6b",
-    storageBucket: "tradig-9ae6b.firebasestorage.app",
-    messagingSenderId: "578018235763",
-    appId: "1:578018235763:web:29908e1be10fedd9a46106"
-};
-
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-
 const defaultSetup = {
     admin: { user:'admin', passHash:'8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', waLink:'', keySystemActive:true, forceJoin:{ active:true, telegram:'', whatsapp:'', note:'Join our official channel to unlock the tools and get latest updates!' } },
     keys: [{ id:'k_master', key:'darkmasterub', name:'Master Access', limit:0, uses:0, expiry:'', active:true, tools:['all'] }],
     tools: [],
     links: [],
     courses: [],
-    logs: [{ time: new Date().toISOString(), action:'System Init', details:'Database configured via Trading Pro Hub.' }]
+    logs: [{ time: new Date().toISOString(), action:'System Init', details:'Database configured via Trading Pro Hub.' }],
+    premiumConfig: { bankName:'EasyPaisa', accountNumber:'03238693440', receiverName:'Receiver', amount:500 },
+    premiumContent: [],
+    premiumKeys: [],
+    premiumRequests: []
 };
 
-const h = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 async function hashPass(pwd) {
     const d = new TextEncoder().encode(pwd);
@@ -530,35 +557,29 @@ const Admin = {
         setTimeout(() => t.remove(), 3000);
     },
 
+    persist() {
+        return SB.save(this.state).catch(() => {});
+    },
+
     saveLog(action, details) {
         this.state.logs.unshift({ time: new Date().toISOString(), action, details });
         if(this.state.logs.length > 100) this.state.logs.pop();
-        database.ref('logs').set(this.state.logs).catch(() => {});
+        this.persist();
     },
 
-    connectFirebase() {
-        const nodes = ['admin','keys','tools','links','courses','logs','premiumConfig','premiumContent','premiumKeys','premiumRequests'];
-        const refs = nodes.map(n => database.ref(n).once('value').then(s => [n, s.val()]).catch(() => [n, null]));
-        Promise.all(refs).then(results => {
-            const data = {};
-            results.forEach(([key, val]) => { data[key] = val; });
-            if(!data.admin) {
+    async connectFirebase() {
+        try {
+            let data = await SB.load();
+            if(!data || !data.admin) {
                 document.getElementById('splash-status').textContent = "Configuring Database Defaults...";
-                database.ref('/').set(defaultSetup).then(() => {
-                    const retry = nodes.map(n => database.ref(n).once('value').then(s => [n, s.val()]).catch(() => [n, null]));
-                    Promise.all(retry).then(r => {
-                        const d = {};
-                        r.forEach(([k, v]) => { d[k] = v; });
-                        this.onDataReady(d);
-                    });
-                });
-                return;
+                await SB.save(defaultSetup);
+                data = await SB.load();
             }
-            this.onDataReady(data);
-        }, (error) => {
+            this.onDataReady(data || {});
+        } catch(err) {
             document.getElementById('splash-status').textContent = "Connection Error!";
-            this.toast('Firebase read error.','error');
-        });
+            this.toast('Database read error.','error');
+        }
     },
 
     async onDataReady(data) {
@@ -567,7 +588,7 @@ const Admin = {
         if (this.state.admin.pass && !this.state.admin.passHash) {
             this.state.admin.passHash = await hashPass(this.state.admin.pass);
             delete this.state.admin.pass;
-            database.ref('admin').update({ passHash: this.state.admin.passHash, pass: null });
+            this.persist();
         }
         if(this.state.admin.keySystemActive === undefined) this.state.admin.keySystemActive = true;
         if(!this.state.admin.forceJoin) this.state.admin.forceJoin = { active:true, telegram:'', whatsapp:'', note:'' };
@@ -609,7 +630,7 @@ const Admin = {
 
     toggleKeySystem(isActive) {
         this.state.admin.keySystemActive = isActive;
-        database.ref('admin/keySystemActive').set(isActive).then(() => {
+        this.persist().then(() => {
             this.saveLog('Security Update', 'Key Login System: '+(isActive?'ENABLED':'DISABLED'));
             this.toast('Key System '+(isActive?'Enabled':'Disabled'));
         }).catch(() => this.toast('Failed to update key system','error'));
@@ -629,7 +650,7 @@ const Admin = {
                 this.toast('Welcome to Command Center');
             } else {
                 this.toast('Invalid Credentials','error');
-                this.saveLog('Failed Admin Login','User attempt: '+h(u));
+                this.saveLog('Failed Admin Login','User attempt: '+esc(u));
             }
         });
 
@@ -646,13 +667,7 @@ const Admin = {
                 whatsapp: document.getElementById('set-fj-wa').value,
                 note: document.getElementById('set-fj-note').value
             };
-            database.ref('admin').update({
-                user: this.state.admin.user,
-                passHash: this.state.admin.passHash,
-                waLink: this.state.admin.waLink,
-                logo: this.state.admin.logo,
-                forceJoin: this.state.admin.forceJoin
-            }).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Settings Updated','Admin config and security updated');
                 this.toast('Settings Saved Successfully');
             }).catch(() => this.toast('Failed to save settings','error'));
@@ -671,7 +686,7 @@ const Admin = {
             if(iconType==='img' && !toolData.iconData) return this.toast('Upload an image icon','error');
             const idx = this.state.tools.findIndex(x => x.id===id);
             if(idx>-1) this.state.tools[idx]=toolData; else this.state.tools.push(toolData);
-            database.ref('tools').set(this.state.tools).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Tool Saved','HTML Tool: '+toolData.name);
                 this.hideSheets(); this.toast('HTML Tool Saved');
             });
@@ -701,7 +716,7 @@ const Admin = {
             if(finalIconType==='img' && !linkData.iconData) return this.toast('Upload an image icon','error');
             const idx = this.state.links.findIndex(x => x.id===id);
             if(idx>-1) this.state.links[idx]=linkData; else this.state.links.push(linkData);
-            database.ref('links').set(this.state.links).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Link/App Saved','Link: '+linkData.name);
                 this.hideSheets(); this.toast('APK / Web Link Saved');
             });
@@ -717,7 +732,7 @@ const Admin = {
             };
             const idx = this.state.courses.findIndex(x => x.id===id);
             if(idx>-1) this.state.courses[idx]=courseData; else this.state.courses.push(courseData);
-            database.ref('courses').set(this.state.courses).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Course Saved','Course: '+courseData.name);
                 this.hideSheets(); this.toast('Course Saved');
             });
@@ -742,7 +757,7 @@ const Admin = {
             };
             const idx = this.state.keys.findIndex(x => x.id===id);
             if(idx>-1) this.state.keys[idx]=keyData; else this.state.keys.push(keyData);
-            database.ref('keys').set(this.state.keys).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Key Saved','Alias: '+keyData.name);
                 this.hideSheets(); this.toast('Access Key Generated');
             });
@@ -758,7 +773,7 @@ const Admin = {
                 amount: parseInt(document.getElementById('premium-amount').value) || 500,
                 adminWhatsApp: document.getElementById('premium-admin-wa').value
             };
-            database.ref('premiumConfig').set(this.state.premiumConfig).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Premium Config Updated', 'Premium payment settings saved');
                 this.toast('Payment settings saved');
             });
@@ -781,7 +796,7 @@ const Admin = {
             if(iconType==='img' && !data.iconData) return this.toast('Upload an image icon','error');
             const idx = this.state.premiumContent.findIndex(x => x.id===id);
             if(idx>-1) this.state.premiumContent[idx]=data; else this.state.premiumContent.push(data);
-            database.ref('premiumContent').set(this.state.premiumContent).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Premium Content Saved', 'Premium: '+data.name);
                 this.hideSheets(); this.toast('Premium content saved');
             });
@@ -804,7 +819,7 @@ const Admin = {
             };
             const idx = this.state.premiumKeys.findIndex(x => x.id===id);
             if(idx>-1) this.state.premiumKeys[idx]=data; else this.state.premiumKeys.push(data);
-            database.ref('premiumKeys').set(this.state.premiumKeys).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Premium Key Saved', 'Alias: '+data.name);
                 this.hideSheets(); this.toast('Premium key saved');
             });
@@ -986,11 +1001,7 @@ const Admin = {
         if(el) el.classList.add('active');
         this.updateFab();
         if(tabId === 'premium') {
-            // Refresh premium data from Firebase
-            database.ref('premiumRequests').once('value', (snap) => {
-                this.state.premiumRequests = snap.val() || [];
-                this.renderAll();
-            });
+            this.renderAll();
         } else {
             this.renderAll();
         }
@@ -1040,29 +1051,29 @@ const Admin = {
 
         document.getElementById('list-logs').innerHTML = this.state.logs.slice(0,15).map(log => {
             const d = new Date(log.time);
-            return '<div class="list-item" style="padding:11px 16px;"><div class="item-info"><div class="item-title" style="font-size:13px;font-weight:600;">'+h(log.action)+'</div><div class="item-sub" style="font-size:10px;">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' &bull; '+h(log.details)+'</div></div></div>';
+            return '<div class="list-item" style="padding:11px 16px;"><div class="item-info"><div class="item-title" style="font-size:13px;font-weight:600;">'+esc(log.action)+'</div><div class="item-sub" style="font-size:10px;">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' &bull; '+esc(log.details)+'</div></div></div>';
         }).join('') || '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No logs found.</div>';
 
         document.getElementById('list-tools').innerHTML = this.state.tools.map(t => {
-            const ic = t.iconType==='img' && t.iconData ? '<img src="'+h(t.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(t.icon)+'" style="color:var(--primary);"></i>';
-            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(t.name)+'</div><div class="item-sub"><span class="badge '+(t.active?'active':'inactive')+'">'+(t.active?'Active':'Disabled')+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editTool(\''+h(t.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delTool(\''+h(t.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+            const ic = t.iconType==='img' && t.iconData ? '<img src="'+esc(t.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+esc(t.icon)+'" style="color:var(--primary);"></i>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+esc(t.name)+'</div><div class="item-sub"><span class="badge '+(t.active?'active':'inactive')+'">'+(t.active?'Active':'Disabled')+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editTool(\''+esc(t.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delTool(\''+esc(t.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No HTML Tools.</div>';
 
         document.getElementById('list-links').innerHTML = this.state.links.map(l => {
-            const ic = l.iconType==='img' && l.iconData ? '<img src="'+h(l.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(l.icon)+'" style="color:var(--premium);"></i>';
-            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(l.name)+'</div><div class="item-sub"><span class="badge '+(l.active?'active':'inactive')+'">'+(l.active?'Active':'Disabled')+'</span> External Link</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editLink(\''+h(l.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delLink(\''+h(l.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+            const ic = l.iconType==='img' && l.iconData ? '<img src="'+esc(l.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+esc(l.icon)+'" style="color:var(--premium);"></i>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+esc(l.name)+'</div><div class="item-sub"><span class="badge '+(l.active?'active':'inactive')+'">'+(l.active?'Active':'Disabled')+'</span> External Link</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editLink(\''+esc(l.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delLink(\''+esc(l.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No APKs / Links.</div>';
 
         document.getElementById('list-courses').innerHTML = this.state.courses.map(c => {
-            const poster = c.posterData ? '<img src="'+h(c.posterData)+'" style="width:36px;height:36px;object-fit:cover;border-radius:7px;">' : '<div style="width:36px;height:36px;border-radius:7px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-graduation-cap" style="font-size:14px;"></i></div>';
-            return '<div class="list-item"><div class="item-info" style="flex-direction:row;align-items:center;gap:10px;">'+poster+'<div style="display:flex;flex-direction:column;gap:3px;"><div class="item-title">'+h(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+h((c.format||'').toUpperCase())+'</div></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editCourse(\''+h(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delCourse(\''+h(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+            const poster = c.posterData ? '<img src="'+esc(c.posterData)+'" style="width:36px;height:36px;object-fit:cover;border-radius:7px;">' : '<div style="width:36px;height:36px;border-radius:7px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-graduation-cap" style="font-size:14px;"></i></div>';
+            return '<div class="list-item"><div class="item-info" style="flex-direction:row;align-items:center;gap:10px;">'+poster+'<div style="display:flex;flex-direction:column;gap:3px;"><div class="item-title">'+esc(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+esc((c.format||'').toUpperCase())+'</div></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editCourse(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delCourse(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No Courses Available.</div>';
 
         document.getElementById('list-keys').innerHTML = this.state.keys.map(k => {
             const bClass = k.id==='k_master' ? 'badge-admin' : (k.active?'active':'inactive');
             const uses = k.uses || 0;
             const limit = k.limit===0 ? '&infin;' : k.limit;
-            return '<div class="list-item"><div class="item-info"><div class="item-title">'+h(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--primary);margin-top:2px;font-size:12px;">'+h(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+bClass+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editKey(\''+h(k.id)+'\')"><i class="fa-solid fa-pen"></i></button>'+(k.id!=='k_master'?'<button class="btn-danger btn-sm" onclick="Admin.delKey(\''+h(k.id)+'\')"><i class="fa-solid fa-trash"></i></button>':'')+'</div></div>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+esc(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--primary);margin-top:2px;font-size:12px;">'+esc(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+bClass+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editKey(\''+esc(k.id)+'\')"><i class="fa-solid fa-pen"></i></button>'+(k.id!=='k_master'?'<button class="btn-danger btn-sm" onclick="Admin.delKey(\''+esc(k.id)+'\')"><i class="fa-solid fa-trash"></i></button>':'')+'</div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No keys generated.</div>';
 
         document.getElementById('set-admin-user').value = this.state.admin.user||'';
@@ -1085,9 +1096,9 @@ const Admin = {
 
         // Premium Content List
         document.getElementById('list-premium-content').innerHTML = this.state.premiumContent.map(c => {
-            const ic = c.iconType==='img' && c.iconData ? '<img src="'+h(c.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+h(c.icon)+'" style="color:var(--premium);"></i>';
+            const ic = c.iconType==='img' && c.iconData ? '<img src="'+esc(c.iconData)+'" style="width:22px;height:22px;object-fit:cover;border-radius:5px;">' : '<i class="'+esc(c.icon)+'" style="color:var(--premium);"></i>';
             const typeMap = { course:'Course', apk:'APK', video:'Video', image:'Image', zip:'ZIP' };
-            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+h(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+(typeMap[c.type]||c.type||'')+'</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumContent(\''+h(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumContent(\''+h(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+ic+' '+esc(c.name)+'</div><div class="item-sub"><span class="badge '+(c.active?'active':'inactive')+'">'+(c.active?'Active':'Disabled')+'</span> '+(typeMap[c.type]||c.type||'')+'</div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumContent(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumContent(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No premium content.</div>';
 
         // Premium Requests List
@@ -1097,14 +1108,14 @@ const Admin = {
             const stLabel = st==='approved' ? 'Approved' : (st==='denied' ? 'Denied' : 'Pending');
             const d = new Date(r.time);
             const timeStr = d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-            const approveBtn = st==='pending' ? '<button class="btn-primary btn-sm" onclick="Admin.approveRequest(\''+h(r.id)+'\')"><i class="fa-solid fa-check"></i></button><button class="btn-danger btn-sm" onclick="Admin.denyRequest(\''+h(r.id)+'\')"><i class="fa-solid fa-xmark"></i></button>' : '';
-            return '<div class="list-item"><div class="item-info"><div class="item-title" style="font-size:13px;"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> '+h(r.whatsapp)+'</div><div class="item-sub">'+timeStr+' &bull; <span style="color:'+stColor+';font-weight:600;">'+stLabel+'</span></div></div><div class="item-actions">'+approveBtn+'</div></div>';
+            const approveBtn = st==='pending' ? '<button class="btn-primary btn-sm" onclick="Admin.approveRequest(\''+esc(r.id)+'\')"><i class="fa-solid fa-check"></i></button><button class="btn-danger btn-sm" onclick="Admin.denyRequest(\''+esc(r.id)+'\')"><i class="fa-solid fa-xmark"></i></button>' : '';
+            return '<div class="list-item"><div class="item-info"><div class="item-title" style="font-size:13px;"><i class="fa-brands fa-whatsapp" style="color:#25D366;"></i> '+esc(r.whatsapp)+'</div><div class="item-sub">'+timeStr+' &bull; <span style="color:'+stColor+';font-weight:600;">'+stLabel+'</span></div></div><div class="item-actions">'+approveBtn+'</div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No payment requests.</div>';
 
         // Premium Keys List
         document.getElementById('list-premium-keys').innerHTML = this.state.premiumKeys.map(k => {
             const uses = k.uses||0; const limit = k.limit===0 ? '&infin;' : k.limit;
-            return '<div class="list-item"><div class="item-info"><div class="item-title">'+h(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--premium);margin-top:2px;font-size:12px;">'+h(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+(k.active?'active':'inactive')+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumKey(\''+h(k.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumKey(\''+h(k.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
+            return '<div class="list-item"><div class="item-info"><div class="item-title">'+esc(k.name)+'</div><div class="item-sub" style="font-family:monospace;color:var(--premium);margin-top:2px;font-size:12px;">'+esc(k.key)+'</div><div class="item-sub" style="margin-top:3px;"><span class="badge '+(k.active?'active':'inactive')+'">'+(k.active?'Active':'Disabled')+'</span> <span style="color:var(--text-muted);font-size:10px;margin-left:3px;">Uses: '+uses+'/'+limit+'</span></div></div><div class="item-actions"><button class="btn-outline btn-sm" onclick="Admin.editPremiumKey(\''+esc(k.id)+'\')"><i class="fa-solid fa-pen"></i></button><button class="btn-danger btn-sm" onclick="Admin.delPremiumKey(\''+esc(k.id)+'\')"><i class="fa-solid fa-trash"></i></button></div></div>';
         }).join('') || '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No premium keys.</div>';
     },
 
@@ -1128,15 +1139,15 @@ const Admin = {
         if(this.state.tools.length>0) {
             html += '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;margin:6px 0 3px;letter-spacing:1px;">HTML Tools</div>';
             this.state.tools.forEach(t => {
-                const ic = t.iconType==='img' ? '<img src="'+h(t.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+h(t.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
-                html += '<label class="checkbox-label"><input type="checkbox" value="'+h(t.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(t.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+h(t.name)+'</label>';
+                const ic = t.iconType==='img' ? '<img src="'+esc(t.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+esc(t.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
+                html += '<label class="checkbox-label"><input type="checkbox" value="'+esc(t.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(t.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+esc(t.name)+'</label>';
             });
         }
         if(this.state.links.length>0) {
             html += '<div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;margin:10px 0 3px;letter-spacing:1px;">APKs & Links</div>';
             this.state.links.forEach(l => {
-                const ic = l.iconType==='img' ? '<img src="'+h(l.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+h(l.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
-                html += '<label class="checkbox-label"><input type="checkbox" value="'+h(l.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(l.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+h(l.name)+'</label>';
+                const ic = l.iconType==='img' ? '<img src="'+esc(l.iconData)+'" style="width:14px;height:14px;object-fit:cover;border-radius:3px;">' : '<i class="'+esc(l.icon)+'" style="width:14px;text-align:center;font-size:12px;"></i>';
+                html += '<label class="checkbox-label"><input type="checkbox" value="'+esc(l.id)+'" class="tool-chk" '+(selectedTools.includes('all')||selectedTools.includes(l.id)?'checked':'')+' '+(selectedTools.includes('all')?'disabled':'')+'> '+ic+' '+esc(l.name)+'</label>';
             });
         }
         container.innerHTML = html;
@@ -1157,7 +1168,7 @@ const Admin = {
         document.getElementById('tool-html').value=t.html||''; document.getElementById('tool-active').checked=t.active; this.showSheet('sheet-tool');
     },
 
-    delTool(id) { if(confirm('Delete this tool permanently?')){this.state.tools=this.state.tools.filter(t=>t.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});database.ref('tools').set(this.state.tools).then(()=>database.ref('keys').set(this.state.keys)).then(()=>{this.saveLog('Tool Deleted','HTML Tool ID: '+id);this.toast('HTML Tool Removed');}).catch(()=>this.toast('Failed to delete tool','error'));} },
+    delTool(id) { if(confirm('Delete this tool permanently?')){this.state.tools=this.state.tools.filter(t=>t.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});this.persist().then(()=>{this.saveLog('Tool Deleted','HTML Tool ID: '+id);this.toast('HTML Tool Removed');}).catch(()=>this.toast('Failed to delete tool','error'));} },
 
     openLinkSheet() { document.getElementById('form-add-link').reset(); document.getElementById('link-id').value=''; document.getElementById('sheet-link-title').textContent='Add APK / Link'; document.getElementById('link-icon-type').value='fa'; this.toggleLinkIconType(); document.getElementById('link-icon-fa').value='fa-brands fa-android'; document.getElementById('link-icon-preview').className='fa-brands fa-android'; document.getElementById('link-icon-base64').value=''; document.getElementById('link-img-preview').style.display='none'; document.getElementById('link-img-placeholder').style.display='block'; document.getElementById('link-active').checked=true; this.showSheet('sheet-link'); },
 
@@ -1172,7 +1183,7 @@ const Admin = {
         document.getElementById('link-url').value=l.url||''; document.getElementById('link-active').checked=l.active; this.showSheet('sheet-link');
     },
 
-    delLink(id) { if(confirm('Delete this App/Link permanently?')){this.state.links=this.state.links.filter(l=>l.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});database.ref('links').set(this.state.links).then(()=>database.ref('keys').set(this.state.keys)).then(()=>{this.saveLog('Link Deleted','Link ID: '+id);this.toast('APK / Link Removed');}).catch(()=>this.toast('Failed to delete link','error'));} },
+    delLink(id) { if(confirm('Delete this App/Link permanently?')){this.state.links=this.state.links.filter(l=>l.id!==id);this.state.keys.forEach(k=>{if(!k.tools.includes('all'))k.tools=k.tools.filter(tid=>tid!==id);});this.persist().then(()=>{this.saveLog('Link Deleted','Link ID: '+id);this.toast('APK / Link Removed');}).catch(()=>this.toast('Failed to delete link','error'));} },
 
     openCourseSheet() { document.getElementById('form-add-course').reset(); document.getElementById('course-id').value=''; document.getElementById('sheet-course-title').textContent='Add Course'; document.getElementById('course-poster-base64').value=''; document.getElementById('course-img-preview').style.display='none'; document.getElementById('course-img-placeholder').style.display='block'; document.getElementById('course-active').checked=true; this.showSheet('sheet-course'); },
 
@@ -1191,7 +1202,7 @@ const Admin = {
         this.showSheet('sheet-course');
     },
 
-    delCourse(id) { if(confirm('Delete this Course permanently?')){this.state.courses=this.state.courses.filter(c=>c.id!==id);database.ref('courses').set(this.state.courses).then(()=>{this.saveLog('Course Deleted','Course ID: '+id);this.toast('Course Removed');});} },
+    delCourse(id) { if(confirm('Delete this Course permanently?')){this.state.courses=this.state.courses.filter(c=>c.id!==id);this.persist().then(()=>{this.saveLog('Course Deleted','Course ID: '+id);this.toast('Course Removed');});} },
 
     openKeySheet() { document.getElementById('form-add-key').reset(); document.getElementById('key-id').value=''; document.getElementById('sheet-key-title').textContent='Generate Passkey'; this.populateToolCheckboxes(['all']); this.showSheet('sheet-key'); },
 
@@ -1207,7 +1218,7 @@ const Admin = {
         this.populateToolCheckboxes(k.tools||[]); this.showSheet('sheet-key');
     },
 
-    delKey(id) { if(confirm('Revoke and delete this passkey?')){this.state.keys=this.state.keys.filter(k=>k.id!==id);database.ref('keys').set(this.state.keys).then(()=>{this.saveLog('Key Revoked','ID: '+id);this.toast('Key Deleted');});} },
+    delKey(id) { if(confirm('Revoke and delete this passkey?')){this.state.keys=this.state.keys.filter(k=>k.id!==id);this.persist().then(()=>{this.saveLog('Key Revoked','ID: '+id);this.toast('Key Deleted');});} },
 
     // ===== PREMIUM METHODS =====
     togglePremiumContentIconType() {
@@ -1263,7 +1274,7 @@ const Admin = {
     delPremiumContent(id) {
         if(confirm('Delete this premium content permanently?')) {
             this.state.premiumContent = this.state.premiumContent.filter(c=>c.id!==id);
-            database.ref('premiumContent').set(this.state.premiumContent).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Premium Content Deleted','ID: '+id);
                 this.toast('Premium content removed');
             });
@@ -1294,7 +1305,7 @@ const Admin = {
     delPremiumKey(id) {
         if(confirm('Delete this premium key permanently?')) {
             this.state.premiumKeys = this.state.premiumKeys.filter(k=>k.id!==id);
-            database.ref('premiumKeys').set(this.state.premiumKeys).then(() => {
+            this.persist().then(() => {
                 this.saveLog('Premium Key Deleted','ID: '+id);
                 this.toast('Premium key removed');
             });
@@ -1304,7 +1315,7 @@ const Admin = {
     approveRequest(id) {
         const req = this.state.premiumRequests.find(x=>x.id===id); if(!req) return;
         req.status = 'approved';
-        database.ref('premiumRequests').set(this.state.premiumRequests).then(() => {
+        this.persist().then(() => {
             this.saveLog('Payment Approved','WhatsApp: '+req.whatsapp);
             this.toast('Payment request approved');
             this.renderAll();
@@ -1314,7 +1325,7 @@ const Admin = {
     denyRequest(id) {
         const req = this.state.premiumRequests.find(x=>x.id===id); if(!req) return;
         req.status = 'denied';
-        database.ref('premiumRequests').set(this.state.premiumRequests).then(() => {
+        this.persist().then(() => {
             this.saveLog('Payment Denied','WhatsApp: '+req.whatsapp);
             this.toast('Payment request denied');
             this.renderAll();
